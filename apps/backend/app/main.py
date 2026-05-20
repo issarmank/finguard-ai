@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.routers import auth, accounts, ledger, tenants
 
 app = FastAPI(
     title="FinGuard AI",
@@ -18,6 +19,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+app.include_router(auth.router, prefix="/auth", tags=["auth"])
+app.include_router(tenants.router, prefix="/tenants", tags=["tenants"])
+app.include_router(accounts.router, prefix="/accounts", tags=["accounts"])
+app.include_router(ledger.router, prefix="/ledger", tags=["ledger"])
 
 
 @app.get("/health", tags=["system"])
