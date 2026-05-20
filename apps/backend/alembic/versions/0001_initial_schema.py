@@ -147,7 +147,15 @@ def upgrade() -> None:
     # --- ROW LEVEL SECURITY ---
     # The true second arg to current_setting returns NULL (not an error) when unset,
     # so migrations run as superuser bypass RLS without issue.
-    for table in ("tenants", "accounts", "journal_entries", "audit_logs"):
+
+    # tenants table uses `id` as its PK — it IS the tenant row
+    op.execute("ALTER TABLE tenants ENABLE ROW LEVEL SECURITY")
+    op.execute("""
+        CREATE POLICY tenant_isolation ON tenants
+        USING (id = current_setting('app.current_tenant_id', true)::UUID)
+    """)
+
+    for table in ("accounts", "journal_entries", "audit_logs", "users"):
         op.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY")
         op.execute(f"""
             CREATE POLICY tenant_isolation ON {table}
@@ -169,7 +177,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     # RLS
-    for table in ("tenants", "accounts", "journal_entries", "audit_logs", "ledger_lines"):
+    for table in ("tenants", "accounts", "journal_entries", "audit_logs", "users", "ledger_lines"):
         op.execute(f"DROP POLICY IF EXISTS tenant_isolation ON {table}")
         op.execute(f"ALTER TABLE {table} DISABLE ROW LEVEL SECURITY")
 
