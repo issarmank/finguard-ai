@@ -1,14 +1,26 @@
-import { clsx, type ClassValue } from "clsx";
+import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatCurrency(amount: number, currency = "USD"): string {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(amount);
+export function fmtMoney(n: number, opts: { sign?: boolean; decimals?: number } = {}): string {
+  const { sign = false, decimals = 2 } = opts;
+  const abs = Math.abs(n);
+  const s = abs.toLocaleString("en-US", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+  return (sign && n > 0 ? "+" : n < 0 ? "-" : "") + "$" + s;
 }
 
-export function formatDate(dateStr: string): string {
-  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(new Date(dateStr));
+export function fmtDate(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+export function fmtDateShort(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
