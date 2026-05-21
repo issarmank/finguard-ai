@@ -2,16 +2,44 @@
 
 import { useState } from "react";
 import { api, ApiError } from "@/lib/api";
-import { PageHeader } from "@/components/shared/page-header";
-import { IconSparkles, IconCopy, IconArrowRight } from "@/components/icons";
+import {
+  IconSparkles,
+  IconCopy,
+  IconArrowRight,
+  IconChevronLeft,
+  IconChevronRight,
+  IconShield,
+  IconLayers,
+  IconClock,
+  IconDownload,
+  IconCheck,
+} from "@/components/icons";
 import type { TextToSQLResponse } from "@/types/api";
 
 const EXAMPLE_QUERIES = [
-  "Show me all expense entries from this month",
-  "What are the top 5 accounts by total debit amount?",
-  "List all voided journal entries",
-  "What is the total revenue recorded this year?",
-  "Show entries with amounts over $10,000",
+  "Total revenue last 30 days",
+  "Accounts with highest debit volume",
+  "All voided entries",
+  "Top 5 expense accounts this month",
+  "Cash balance trend by week",
+];
+
+const TIPS = [
+  {
+    Icon: IconShield,
+    title: "Read-only by design",
+    body: "Generated queries are sandboxed to SELECT statements scoped to your tenant.",
+  },
+  {
+    Icon: IconLayers,
+    title: "Schema-aware",
+    body: "Knows your chart of accounts, ledger lines, and journal entry status field.",
+  },
+  {
+    Icon: IconClock,
+    title: "Streamed results",
+    body: "Typical query returns in ~1.2s. Long-running scans surface progress.",
+  },
 ];
 
 export default function AIQueryPage() {
@@ -19,7 +47,7 @@ export default function AIQueryPage() {
   const [result, setResult] = useState<TextToSQLResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [sqlExpanded, setSqlExpanded] = useState(true);
+  const [sqlOpen, setSqlOpen] = useState(true);
   const [copied, setCopied] = useState(false);
 
   async function handleQuery(q: string) {
@@ -43,171 +71,348 @@ export default function AIQueryPage() {
     if (!result) return;
     navigator.clipboard.writeText(result.sql);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  function resetToHero() {
+    setResult(null);
+    setError(null);
+    setQuery("");
   }
 
   const columns = result?.results.length ? Object.keys(result.results[0]) : [];
+  const isIdle = !result && !error && !loading;
 
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24, maxWidth: 960 }}>
-      <PageHeader
-        title="AI Query"
-        subtitle="Ask questions about your ledger data in natural language"
-      />
-
-      {/* Query Input */}
-      <div className="card" style={{ padding: "20px 22px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: 7,
-            background: "var(--primary-faint)", border: "1px solid var(--primary-dim)",
-            display: "grid", placeItems: "center",
-          }}>
-            <IconSparkles size={14} stroke="var(--primary)" />
+  // ---------- IDLE: Hero layout ----------
+  if (isIdle) {
+    return (
+      <div style={{ maxWidth: 880, margin: "0 auto" }}>
+        <div style={{ textAlign: "center", padding: "24px 0 28px" }}>
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 16,
+              padding: "6px 12px",
+              borderRadius: 999,
+              background: "var(--primary-faint)",
+              border: "1px solid var(--primary-dim)",
+              fontSize: 11.5,
+              color: "var(--primary)",
+              fontWeight: 500,
+            }}
+          >
+            <IconSparkles size={12} stroke="var(--primary)" />
+            Powered by Gemini 2.5 Flash · OpenRouter
           </div>
-          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--heading)" }}>Natural Language Query</span>
+          <h1
+            style={{
+              fontSize: 32,
+              color: "var(--heading)",
+              letterSpacing: "-0.02em",
+              marginBottom: 8,
+            }}
+          >
+            Ask anything about your ledger
+          </h1>
+          <p style={{ color: "var(--muted)", fontSize: 14, maxWidth: 560, margin: "0 auto" }}>
+            Plain-English questions become safe, read-only SQL against your tenant&apos;s ledger.
+            Results land in seconds.
+          </p>
         </div>
 
-        <div style={{ display: "flex", gap: 10 }}>
-          <input
-            className="input"
-            style={{ flex: 1, fontSize: 14, height: 40 }}
-            placeholder="e.g. Show me all expense entries from this month…"
+        <div style={{ position: "relative" }}>
+          <textarea
+            className="textarea"
+            placeholder="e.g. What are my top 5 expense accounts this month?"
+            rows={4}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !loading && handleQuery(query)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleQuery(query);
+            }}
+            style={{
+              fontSize: 15,
+              padding: "18px 20px",
+              borderRadius: 10,
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              resize: "none",
+            }}
           />
-          <button
-            className="btn btn-primary"
-            disabled={loading || !query.trim()}
-            onClick={() => handleQuery(query)}
-            style={{ height: 40, gap: 6, paddingLeft: 16, paddingRight: 16 }}
+          <div
+            style={{
+              position: "absolute",
+              right: 14,
+              bottom: 14,
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+            }}
           >
-            {loading ? <span className="spinner" /> : <><IconArrowRight size={14} /> Run</>}
-          </button>
+            <span className="mono" style={{ fontSize: 11, color: "var(--muted)" }}>⌘↵ to run</span>
+            <button className="btn btn-primary" onClick={() => handleQuery(query)} disabled={!query.trim()}>
+              Run Query <IconArrowRight size={13} stroke="#04130c" />
+            </button>
+          </div>
         </div>
 
-        {/* Example queries */}
-        <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 6 }}>
-          <span style={{ fontSize: 11, color: "var(--muted)", marginRight: 4, paddingTop: 2 }}>Try:</span>
-          {EXAMPLE_QUERIES.map((ex) => (
-            <button
-              key={ex}
-              className="btn btn-ghost btn-sm"
-              onClick={() => handleQuery(ex)}
-              style={{ fontSize: 11.5, height: 24, padding: "0 10px", color: "var(--muted)" }}
-            >
-              {ex}
-            </button>
+        {/* Example chips */}
+        <div style={{ marginTop: 18 }}>
+          <div
+            style={{
+              fontSize: 11,
+              color: "var(--muted)",
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              marginBottom: 10,
+              fontWeight: 500,
+            }}
+          >
+            Example queries
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {EXAMPLE_QUERIES.map((q) => (
+              <button
+                key={q}
+                onClick={() => handleQuery(q)}
+                className="btn btn-ghost btn-sm"
+                style={{ fontWeight: 400, color: "var(--body)" }}
+              >
+                <IconSparkles size={11} stroke="var(--muted)" />
+                {q}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Trust cards */}
+        <div style={{ marginTop: 28, display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+          {TIPS.map(({ Icon, title, body }) => (
+            <div key={title} className="card" style={{ padding: 14 }}>
+              <Icon size={16} stroke="var(--primary)" />
+              <div style={{ color: "var(--heading)", fontSize: 13, fontWeight: 500, marginTop: 10 }}>{title}</div>
+              <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 4, lineHeight: 1.5 }}>{body}</div>
+            </div>
           ))}
         </div>
       </div>
+    );
+  }
 
-      {/* Error */}
+  // ---------- LOADING / DONE: Query header + split panels ----------
+  return (
+    <div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 16,
+          marginBottom: 16,
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: 11,
+              color: "var(--muted)",
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              fontWeight: 500,
+              marginBottom: 6,
+            }}
+          >
+            Query
+          </div>
+          <h1 style={{ fontSize: 20, color: "var(--heading)", letterSpacing: "-0.01em" }}>
+            {query}
+          </h1>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn btn-ghost" onClick={resetToHero}>
+            <IconChevronLeft size={13} /> New query
+          </button>
+        </div>
+      </div>
+
       {error && (
-        <div style={{
-          padding: "12px 16px", borderRadius: 8,
-          background: "var(--danger-dim)", border: "1px solid #f8717155",
-          color: "var(--danger)", fontSize: 13,
-        }}>
+        <div
+          style={{
+            padding: "12px 16px",
+            borderRadius: 8,
+            background: "var(--danger-dim)",
+            border: "1px solid #f8717155",
+            color: "var(--danger)",
+            fontSize: 13,
+            marginBottom: 16,
+          }}
+        >
           {error}
         </div>
       )}
 
-      {/* Results */}
-      {result && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {/* Generated SQL */}
-          <div className="card" style={{ overflow: "hidden" }}>
-            <div
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: sqlOpen ? "1fr 1.4fr" : "40px 1fr",
+          gap: 14,
+          transition: "grid-template-columns .25s",
+        }}
+      >
+        {/* SQL panel */}
+        <div className="card" style={{ overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "10px 14px",
+              borderBottom: sqlOpen ? "1px solid var(--border)" : "none",
+              background: "var(--surface-2)",
+            }}
+          >
+            <button
+              onClick={() => setSqlOpen(!sqlOpen)}
               style={{
-                padding: "12px 16px", display: "flex", alignItems: "center",
-                justifyContent: "space-between", cursor: "pointer",
-                borderBottom: sqlExpanded ? "1px solid var(--border)" : "none",
+                background: "none",
+                border: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                color: "var(--body)",
+                fontWeight: 500,
+                fontSize: 12.5,
+                cursor: "pointer",
               }}
-              onClick={() => setSqlExpanded((p) => !p)}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                  Generated SQL
+              <IconChevronRight
+                size={13}
+                style={{ transform: sqlOpen ? "rotate(90deg)" : "rotate(0)", transition: "transform .15s" }}
+              />
+              {sqlOpen ? "Generated SQL" : ""}
+              {sqlOpen && (
+                <span className="badge badge-gray" style={{ marginLeft: 4 }}>
+                  postgres
                 </span>
-                <span className="badge badge-emerald" style={{ fontSize: 10 }}>
+              )}
+            </button>
+            {sqlOpen && result && (
+              <button className="btn btn-ghost btn-sm" onClick={copySQL}>
+                {copied ? (
+                  <>
+                    <IconCheck size={12} stroke="var(--primary)" /> Copied
+                  </>
+                ) : (
+                  <>
+                    <IconCopy size={12} /> Copy
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+          {sqlOpen && (
+            <div style={{ flex: 1, overflow: "auto", background: "var(--surface-2)" }}>
+              {loading ? (
+                <div
+                  style={{
+                    padding: 18,
+                    color: "var(--muted)",
+                    fontSize: 12.5,
+                    fontFamily: "var(--font-mono), monospace",
+                  }}
+                >
+                  generating sql…
+                </div>
+              ) : result ? (
+                <pre className="sql-block fade-in" style={{ margin: 0 }}>
+                  {result.sql}
+                </pre>
+              ) : null}
+            </div>
+          )}
+        </div>
+
+        {/* Results panel */}
+        <div className="card" style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "10px 14px",
+              borderBottom: "1px solid var(--border)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ color: "var(--heading)", fontSize: 12.5, fontWeight: 500 }}>Results</span>
+              {result && (
+                <span className="badge badge-emerald">
                   {result.row_count} row{result.row_count !== 1 ? "s" : ""}
                 </span>
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  className="btn btn-ghost btn-sm"
-                  onClick={(e) => { e.stopPropagation(); copySQL(); }}
-                  style={{ fontSize: 11.5, height: 26, gap: 5 }}
-                >
-                  <IconCopy size={12} /> {copied ? "Copied!" : "Copy"}
-                </button>
-                <span style={{ fontSize: 11, color: "var(--muted)", paddingTop: 2 }}>
-                  {sqlExpanded ? "▲" : "▼"}
-                </span>
-              </div>
+              )}
             </div>
-            {sqlExpanded && (
-              <pre className="sql-block" style={{ margin: 0, borderRadius: 0, borderTop: "none" }}>
-                {result.sql}
-              </pre>
+            {result && (
+              <button className="btn btn-ghost btn-sm">
+                <IconDownload size={12} /> CSV
+              </button>
             )}
           </div>
 
-          {/* Results Table */}
-          <div className="card" style={{ overflow: "hidden" }}>
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)" }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--heading)" }}>Results</span>
-              <span style={{ fontSize: 12, color: "var(--muted)", marginLeft: 8 }}>
-                {result.row_count} row{result.row_count !== 1 ? "s" : ""} returned
-              </span>
-            </div>
-            {result.results.length === 0 ? (
-              <div style={{ padding: "32px 20px", textAlign: "center", color: "var(--muted)", fontSize: 13 }}>
-                No results found for your query.
+          {loading && (
+            <div style={{ flex: 1, display: "grid", placeItems: "center", minHeight: 280 }}>
+              <div style={{ textAlign: "center" }}>
+                <div className="spinner" style={{ margin: "0 auto 14px" }} />
+                <div style={{ color: "var(--primary)", fontWeight: 500, fontSize: 13 }}>Thinking…</div>
+                <div style={{ color: "var(--muted)", fontSize: 11.5, marginTop: 4 }}>
+                  Generating SQL · running against ledger
+                </div>
               </div>
-            ) : (
-              <div style={{ overflowX: "auto" }}>
-                <table className="data" style={{ width: "100%", minWidth: 500 }}>
+            </div>
+          )}
+
+          {result && (
+            <div className="fade-in" style={{ overflow: "auto" }}>
+              {result.results.length === 0 ? (
+                <div
+                  style={{
+                    padding: "32px 20px",
+                    textAlign: "center",
+                    color: "var(--muted)",
+                    fontSize: 13,
+                  }}
+                >
+                  No results found for your query.
+                </div>
+              ) : (
+                <table className="data">
                   <thead>
                     <tr>
-                      {columns.map((col) => (
-                        <th key={col} style={{ textTransform: "none" }}>{col}</th>
+                      {columns.map((c) => (
+                        <th key={c} style={{ textTransform: "none" }}>
+                          {c}
+                        </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {result.results.map((row, i) => (
-                      <tr key={i}>
-                        {columns.map((col) => (
-                          <td key={col} style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>
-                            {row[col] == null ? <span style={{ color: "var(--muted)" }}>NULL</span> : String(row[col])}
+                      <tr key={i} style={{ background: i % 2 === 1 ? "var(--surface-2)" : "var(--surface)" }}>
+                        {columns.map((c) => (
+                          <td key={c} className="mono" style={{ fontSize: 12 }}>
+                            {row[c] == null ? <span style={{ color: "var(--muted)" }}>NULL</span> : String(row[c])}
                           </td>
                         ))}
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
-      )}
-
-      {/* Empty state */}
-      {!result && !error && !loading && (
-        <div style={{
-          padding: "48px 24px", textAlign: "center", color: "var(--muted)",
-          border: "1px dashed var(--border)", borderRadius: 12,
-        }}>
-          <IconSparkles size={32} stroke="var(--border-strong)" style={{ margin: "0 auto 12px" }} />
-          <div style={{ fontSize: 14, color: "var(--body)", marginBottom: 6 }}>Ask anything about your financial data</div>
-          <div style={{ fontSize: 12 }}>
-            The AI translates your question into SQL, runs it safely, and shows the results.
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
