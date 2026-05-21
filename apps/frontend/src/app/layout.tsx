@@ -5,7 +5,7 @@ import "./globals.css";
 
 const inter = Inter({
   subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--font-sans",   // ← was "--font-inter"
   display: "swap",
 });
 
@@ -17,17 +17,17 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "FinGuard AI",
-  description: "Multi-Tenant Financial Ledger & AI-Driven Compliance/Audit Engine",
+  description:
+    "Multi-Tenant Financial Ledger & AI-Driven Compliance/Audit Engine",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}>
+    // Font classes on <html> so the CSS vars cascade everywhere, including :root.
+    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
+      <body className="antialiased">
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
