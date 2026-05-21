@@ -23,7 +23,7 @@ async def list_accounts(
     tenant_id: CurrentTenantId,
     db: DBSession,
     page: int = Query(1, ge=1),
-    size: int = Query(50, ge=1, le=100),
+    size: int = Query(50, ge=1, le=500),
 ) -> PaginatedResponse[AccountResponse]:
     query = select(Account).where(Account.tenant_id == tenant_id).order_by(Account.code)
     total = await db.scalar(select(func.count()).select_from(query.subquery())) or 0

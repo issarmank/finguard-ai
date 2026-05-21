@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
-from app.dependencies import DBSession
-from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
+from app.dependencies import CurrentUser, DBSession
+from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserResponse
 from app.services import auth_service
 
 router = APIRouter()
@@ -25,3 +25,8 @@ async def login(req: LoginRequest, db: DBSession) -> TokenResponse:
         access_token=token,
         expires_in=60 * 60,
     )
+
+
+@router.get("/me", response_model=UserResponse)
+async def get_me(current_user: CurrentUser) -> UserResponse:
+    return current_user
