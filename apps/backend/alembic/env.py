@@ -10,10 +10,16 @@ from app.config import settings
 from app.database import Base
 
 # import all models so Base.metadata is populated for autogenerate
-from app.models.account import Account as Account  # noqa: F401
 from app.models.audit import AuditLog as AuditLog  # noqa: F401
-from app.models.journal import JournalEntry as JournalEntry, LedgerLine as LedgerLine  # noqa: F401
-from app.models.tenant import Tenant as Tenant  # noqa: F401
+from app.models.finance import (  # noqa: F401
+    Budget,
+    Category,
+    FinancialAccount,
+    Goal,
+    NetWorthSnapshot,
+    PlaidItem,
+    Transaction,
+)
 from app.models.user import User as User  # noqa: F401
 
 config = context.config
