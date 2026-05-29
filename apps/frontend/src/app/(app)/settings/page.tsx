@@ -1,62 +1,116 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { usePlaidLink } from "react-plaid-link";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { PageHeader } from "@/components/shared/page-header";
-import { IconShield, IconSettings } from "@/components/icons";
-import type { AccountResponse, PaginatedResponse, TenantResponse } from "@/types/api";
+import { IconShield, IconSettings, IconLink2 } from "@/components/icons";
+import type { PlaidItemOut, AccountOut } from "@/types/api";
 
-export default function SettingsPage() {
-  const { logout } = useAuth();
-  const router = useRouter();
-  const [tenant, setTenant] = useState<TenantResponse | null>(null);
-  const [accounts, setAccounts] = useState<AccountResponse[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  // New account form
-  const [newAcct, setNewAcct] = useState({
-    code: "", name: "",
-    type: "asset" as AccountResponse["type"],
-    normal_side: "debit" as AccountResponse["normal_side"],
-  });
-  const [acctError, setAcctError] = useState<string | null>(null);
-  const [acctLoading, setAcctLoading] = useState(false);
+// Separate component so usePlaidLink only mounts when we have a token
+function PlaidLinkButton({
+  onSuccess,
+  onExit,
+}: {
+  onSuccess: (publicToken: string, institution: string) => void;
+  onExit: () => void;
+}) {
+  const [linkToken, setLinkToken] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      api.get<TenantResponse>("/tenants/me"),
-      api.get<PaginatedResponse<AccountResponse>>("/accounts?page=1&size=100"),
-    ]).then(([t, accts]) => {
-      setTenant(t);
-      setAccounts(accts.items);
-    }).finally(() => setLoading(false));
+    api.post<{ link_token: string }>("/plaid/link-token", {})
+      .then((r) => setLinkToken(r.link_token))
+      .catch((err) => setFetchError(err instanceof ApiError ? err.message : "Failed to start Plaid"));
   }, []);
 
-  async function createAccount(e: React.FormEvent) {
-    e.preventDefault();
-    setAcctError(null);
-    setAcctLoading(true);
+  const onPlaidSuccess = useCallback(
+    (public_token: string, metadata: { institution?: { name?: string } | null }) => {
+      onSuccess(public_token, metadata?.institution?.name ?? "Unknown Bank");
+    },
+    [onSuccess],
+  );
+
+  const { open, ready } = usePlaidLink({
+    token: linkToken ?? "",
+    onSuccess: onPlaidSuccess,
+    onExit: onExit,
+  });
+
+  if (fetchError) {
+    return (
+      <div style={{ padding: "8px 12px", borderRadius: 6, background: "var(--danger-dim)", color: "var(--danger)", fontSize: 12.5 }}>
+        {fetchError}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      className="btn btn-primary"
+      onClick={() => open()}
+      disabled={!ready || !linkToken}
+    >
+      {!linkToken ? <span className="spinner" /> : "🏦 Connect Bank"}
+    </button>
+  );
+}
+
+export default function SettingsPage() {
+  const { user, logout } = useAuth();
+  const router = useRouter();
+  const [items, setItems] = useState<PlaidItemOut[]>([]);
+  const [accounts, setAccounts] = useState<AccountOut[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showPlaid, setShowPlaid] = useState(false);
+  const [syncing, setSyncing] = useState<string | null>(null);
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
+
+  function loadData() {
+    return Promise.all([
+      api.get<PlaidItemOut[]>("/plaid/items").catch(() => []),
+      api.get<AccountOut[]>("/transactions/accounts"),
+    ]).then(([its, accts]) => {
+      setItems(its);
+      setAccounts(accts);
+    });
+  }
+
+  useEffect(() => {
+    loadData().finally(() => setLoading(false));
+  }, []);
+
+  async function handlePlaidSuccess(publicToken: string, institution: string) {
+    setShowPlaid(false);
+    setStatusMsg("Linking account…");
     try {
-      const created = await api.post<AccountResponse>("/accounts", newAcct);
-      setAccounts((prev) => [...prev, created]);
-      setNewAcct({ code: "", name: "", type: "asset", normal_side: "debit" });
+      // Step 4 — exchange public token
+      const item = await api.post<PlaidItemOut>("/plaid/exchange", {
+        public_token: publicToken,
+        institution,
+      });
+      setStatusMsg("Syncing transactions…");
+      // Step 5 — sync transactions
+      const { synced } = await api.post<{ synced: number }>(`/plaid/sync/${item.id}`, {});
+      setStatusMsg(`✓ Connected ${institution} — ${synced} transactions imported`);
+      await loadData();
     } catch (err) {
-      setAcctError(err instanceof ApiError ? err.message : "Failed to create account");
-    } finally {
-      setAcctLoading(false);
+      setStatusMsg(`Error: ${err instanceof ApiError ? err.message : "Connection failed"}`);
     }
   }
 
-  async function toggleAccount(acct: AccountResponse) {
+  async function syncItem(itemId: string) {
+    setSyncing(itemId);
     try {
-      const updated = await api.patch<AccountResponse>(`/accounts/${acct.id}`, {
-        is_active: !acct.is_active,
-      });
-      setAccounts((prev) => prev.map((a) => (a.id === acct.id ? updated : a)));
+      await api.post(`/plaid/sync/${itemId}`, {});
+      const accts = await api.get<AccountOut[]>("/transactions/accounts");
+      setAccounts(accts);
     } catch {
       // silent
+    } finally {
+      setSyncing(null);
     }
   }
 
@@ -66,180 +120,132 @@ export default function SettingsPage() {
   }
 
   const ACCOUNT_TYPE_COLORS: Record<string, string> = {
-    asset: "var(--primary)",
-    liability: "var(--danger)",
-    equity: "var(--warning)",
-    income: "#a78bfa",
-    expense: "#fb923c",
+    checking: "var(--primary)",
+    savings: "#34d399",
+    investment: "#a78bfa",
+    cash: "#86efac",
+    credit: "var(--danger)",
+    loan: "#fca5a5",
   };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 28, maxWidth: 800 }}>
-      <PageHeader
-        title="Settings"
-        subtitle="Manage your workspace and chart of accounts"
-      />
+      <PageHeader title="Settings" subtitle="Manage your linked accounts and profile" />
 
-      {/* Workspace */}
+      {/* Profile */}
       <section>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <IconSettings size={14} stroke="var(--muted)" />
-          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-            Workspace
-          </span>
-        </div>
+        <SectionHeader icon={<IconSettings size={14} stroke="var(--muted)" />} label="Profile" />
         <div className="card" style={{ padding: "20px 22px" }}>
-          {loading ? (
-            <span className="spinner" style={{ width: 18, height: 18 }} />
-          ) : tenant ? (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-              {[
-                { label: "Organisation", value: tenant.name },
-                { label: "Workspace slug", value: tenant.slug },
-                { label: "Status", value: tenant.is_active ? "Active" : "Inactive" },
-              ].map(({ label, value }) => (
-                <div key={label}>
-                  <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 4 }}>{label}</div>
-                  <div style={{ fontSize: 13.5, color: "var(--heading)", fontWeight: 500 }}>{value}</div>
-                </div>
-              ))}
+          {user ? (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
+              <Field label="Email" value={user.email} />
+              <Field label="Account ID" value={user.id.slice(0, 8) + "…"} mono />
             </div>
-          ) : null}
+          ) : (
+            <span className="spinner" style={{ width: 18, height: 18 }} />
+          )}
         </div>
       </section>
 
-      {/* Chart of Accounts */}
+      {/* Linked Banks */}
       <section>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <IconLayers size={14} stroke="var(--muted)" />
-          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-            Chart of Accounts ({accounts.length})
-          </span>
-        </div>
-
-        {/* New Account Form */}
+        <SectionHeader icon={<IconLink2 size={14} stroke="var(--muted)" />} label="Linked Bank Accounts" />
         <div className="card" style={{ padding: "18px 20px", marginBottom: 12 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--heading)", marginBottom: 12 }}>Add Account</div>
-          {acctError && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 13.5, color: "var(--heading)", fontWeight: 500, marginBottom: 3 }}>Connect a Bank</div>
+              <div style={{ fontSize: 12, color: "var(--muted)" }}>Use Plaid to securely link your bank, credit card, or investment accounts.</div>
+            </div>
+            {showPlaid ? (
+              <PlaidLinkButton
+                onSuccess={handlePlaidSuccess}
+                onExit={() => setShowPlaid(false)}
+              />
+            ) : (
+              <button className="btn btn-primary" onClick={() => setShowPlaid(true)}>
+                🏦 Connect Bank
+              </button>
+            )}
+          </div>
+          {statusMsg && (
             <div style={{
-              padding: "8px 12px", borderRadius: 6, marginBottom: 12,
-              background: "var(--danger-dim)", color: "var(--danger)", fontSize: 12.5,
+              marginTop: 10, padding: "8px 12px", borderRadius: 6, fontSize: 12.5,
+              background: statusMsg.startsWith("Error") ? "var(--danger-dim)" : "var(--primary-faint)",
+              color: statusMsg.startsWith("Error") ? "var(--danger)" : "var(--primary)",
+              border: `1px solid ${statusMsg.startsWith("Error") ? "#f8717133" : "var(--primary-dim)"}`,
             }}>
-              {acctError}
+              {statusMsg}
             </div>
           )}
-          <form onSubmit={createAccount} style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <label style={{ fontSize: 11, color: "var(--muted)" }}>Code</label>
-              <input className="input" placeholder="1001" value={newAcct.code}
-                onChange={(e) => setNewAcct((p) => ({ ...p, code: e.target.value }))}
-                required style={{ width: 80 }} />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 160 }}>
-              <label style={{ fontSize: 11, color: "var(--muted)" }}>Name</label>
-              <input className="input" placeholder="Cash and Equivalents" value={newAcct.name}
-                onChange={(e) => setNewAcct((p) => ({ ...p, name: e.target.value }))}
-                required />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <label style={{ fontSize: 11, color: "var(--muted)" }}>Type</label>
-              <select className="select" value={newAcct.type}
-                onChange={(e) => setNewAcct((p) => ({
-                  ...p,
-                  type: e.target.value as AccountResponse["type"],
-                  normal_side: (["asset", "expense"].includes(e.target.value) ? "debit" : "credit") as AccountResponse["normal_side"],
-                }))}>
-                <option value="asset">Asset</option>
-                <option value="liability">Liability</option>
-                <option value="equity">Equity</option>
-                <option value="income">Income</option>
-                <option value="expense">Expense</option>
-              </select>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <label style={{ fontSize: 11, color: "var(--muted)" }}>Normal Side</label>
-              <select className="select" value={newAcct.normal_side}
-                onChange={(e) => setNewAcct((p) => ({ ...p, normal_side: e.target.value as AccountResponse["normal_side"] }))}>
-                <option value="debit">Debit</option>
-                <option value="credit">Credit</option>
-              </select>
-            </div>
-            <button type="submit" className="btn btn-primary btn-sm" disabled={acctLoading} style={{ height: 34 }}>
-              {acctLoading ? <span className="spinner" /> : "Add"}
-            </button>
-          </form>
         </div>
 
-        {/* Accounts Table */}
-        <div className="card" style={{ overflow: "hidden" }}>
-          {accounts.length === 0 ? (
-            <div style={{ padding: "32px 20px", textAlign: "center", color: "var(--muted)", fontSize: 13 }}>
-              No accounts yet. Add your first account above.
+        {loading ? (
+          <div style={{ padding: 24, display: "grid", placeItems: "center" }}><span className="spinner" style={{ width: 20, height: 20 }} /></div>
+        ) : items.length === 0 ? (
+          <div style={{ padding: "24px 20px", textAlign: "center", color: "var(--muted)", fontSize: 13 }}>
+            No banks linked yet. Connect one above to import your transactions automatically.
+          </div>
+        ) : (
+          items.map((item) => (
+            <div key={item.id} className="card" style={{ padding: "14px 18px", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--heading)" }}>{item.institution}</div>
+                <div style={{ fontSize: 11.5, color: "var(--muted)" }}>
+                  Connected {new Date(item.created_at).toLocaleDateString()}
+                  {item.last_synced && ` · Last synced ${new Date(item.last_synced).toLocaleDateString()}`}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="btn btn-ghost btn-sm" onClick={() => syncItem(item.id)} disabled={syncing === item.id}>
+                  {syncing === item.id ? <span className="spinner" /> : "Sync"}
+                </button>
+              </div>
             </div>
-          ) : (
+          ))
+        )}
+      </section>
+
+      {/* Account List */}
+      {accounts.length > 0 && (
+        <section>
+          <SectionHeader icon={<IconSettings size={14} stroke="var(--muted)" />} label={`Accounts (${accounts.length})`} />
+          <div className="card" style={{ overflow: "hidden" }}>
             <table className="data" style={{ width: "100%" }}>
               <thead>
                 <tr>
-                  <th style={{ width: 70 }}>Code</th>
                   <th>Name</th>
                   <th>Type</th>
-                  <th>Normal Side</th>
-                  <th style={{ textAlign: "center" }}>Active</th>
+                  <th style={{ textAlign: "right" }}>Balance</th>
                 </tr>
               </thead>
               <tbody>
                 {accounts.map((acct) => (
-                  <tr key={acct.id} style={{ opacity: acct.is_active ? 1 : 0.45 }}>
-                    <td style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--muted)" }}>
-                      {acct.code}
-                    </td>
+                  <tr key={acct.id}>
                     <td style={{ color: "var(--body)" }}>{acct.name}</td>
                     <td>
                       <span style={{
                         fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 4,
-                        background: `${ACCOUNT_TYPE_COLORS[acct.type]}18`,
-                        color: ACCOUNT_TYPE_COLORS[acct.type],
+                        background: `${ACCOUNT_TYPE_COLORS[acct.type] ?? "#6ee7b7"}18`,
+                        color: ACCOUNT_TYPE_COLORS[acct.type] ?? "var(--primary)",
                         textTransform: "capitalize",
                       }}>
                         {acct.type}
                       </span>
                     </td>
-                    <td style={{ color: "var(--muted)", textTransform: "capitalize", fontSize: 12.5 }}>
-                      {acct.normal_side}
-                    </td>
-                    <td style={{ textAlign: "center" }}>
-                      <button
-                        onClick={() => toggleAccount(acct)}
-                        style={{
-                          width: 36, height: 20, borderRadius: 999, cursor: "pointer",
-                          background: acct.is_active ? "var(--primary)" : "var(--border-strong)",
-                          border: "none", position: "relative", transition: "background 0.2s",
-                        }}
-                      >
-                        <div style={{
-                          width: 14, height: 14, borderRadius: 999, background: "#fff",
-                          position: "absolute", top: 3,
-                          left: acct.is_active ? 19 : 3,
-                          transition: "left 0.2s",
-                        }} />
-                      </button>
+                    <td className="mono" style={{ textAlign: "right", fontSize: 13, color: "var(--heading)" }}>
+                      {acct.balance < 0 ? "-" : ""}${Math.abs(acct.balance).toLocaleString("en-US", { minimumFractionDigits: 2 })}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          )}
-        </div>
-      </section>
+          </div>
+        </section>
+      )}
 
-      {/* Danger Zone */}
+      {/* Session */}
       <section>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <IconShield size={14} stroke="var(--danger)" />
-          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--danger)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-            Session
-          </span>
-        </div>
+        <SectionHeader icon={<IconShield size={14} stroke="var(--danger)" />} label="Session" danger />
         <div className="card" style={{ padding: "18px 22px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <div style={{ fontSize: 13.5, color: "var(--heading)", fontWeight: 500, marginBottom: 3 }}>Sign out</div>
@@ -252,13 +258,22 @@ export default function SettingsPage() {
   );
 }
 
-// Icon used inline in settings — not in icons.tsx
-function IconLayers({ size = 16, stroke = "currentColor" }: { size?: number; stroke?: string }) {
+function SectionHeader({ icon, label, danger }: { icon: React.ReactNode; label: string; danger?: boolean }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="12 2 2 7 12 12 22 7 12 2" />
-      <polyline points="2 17 12 22 22 17" />
-      <polyline points="2 12 12 17 22 12" />
-    </svg>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+      {icon}
+      <span style={{ fontSize: 12, fontWeight: 600, color: danger ? "var(--danger)" : "var(--muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+        {label}
+      </span>
+    </div>
+  );
+}
+
+function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div>
+      <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 4 }}>{label}</div>
+      <div className={mono ? "mono" : ""} style={{ fontSize: 13.5, color: "var(--heading)", fontWeight: 500 }}>{value}</div>
+    </div>
   );
 }

@@ -4,211 +4,127 @@ import { useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { PageHeader } from "@/components/shared/page-header";
 import { IconFile, IconDownload, IconRefresh } from "@/components/icons";
-import type { AuditReportResponse } from "@/types/api";
+import type { MonthlyReportResponse } from "@/types/api";
 
-export default function AuditReportsPage() {
-  const today = new Date().toISOString().split("T")[0];
-  const firstOfMonth = today.slice(0, 8) + "01";
+export default function ReportsPage() {
+  const today = new Date();
+  const defaultMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
 
-  const [dateFrom, setDateFrom] = useState(firstOfMonth);
-  const [dateTo, setDateTo] = useState(today);
-  const [includeVoided, setIncludeVoided] = useState(false);
-  const [report, setReport] = useState<AuditReportResponse | null>(null);
+  const [month, setMonth] = useState(defaultMonth);
+  const [report, setReport] = useState<MonthlyReportResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function generate() {
     setError(null);
+    setReport(null);
     setLoading(true);
     try {
-      const res = await api.post<AuditReportResponse>("/ai/audit-report", {
-        date_from: dateFrom,
-        date_to: dateTo,
-        include_voided: includeVoided,
-      });
+      const res = await api.post<MonthlyReportResponse>("/ai/report", { month });
       setReport(res);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Report generation failed");
+      setError(err instanceof ApiError ? err.message : "Failed to generate report");
     } finally {
       setLoading(false);
     }
   }
 
-  function downloadMarkdown() {
+  function downloadReport() {
     if (!report) return;
     const blob = new Blob([report.report_markdown], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `audit-report-${report.date_from}-${report.date_to}.md`;
+    a.download = `finguard-report-${report.month}.md`;
     a.click();
     URL.revokeObjectURL(url);
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24, maxWidth: 900 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 900 }}>
       <PageHeader
-        title="Audit Reports"
-        subtitle="Generate AI-written compliance reports for any date range"
+        title="Monthly Reports"
+        subtitle="AI-generated analysis of your spending, savings, and financial health"
+        actions={
+          report && (
+            <button className="btn btn-ghost" onClick={downloadReport}>
+              <IconDownload size={13} /> Download .md
+            </button>
+          )
+        }
       />
 
-      {/* Config Panel */}
-      <div className="card" style={{ padding: "22px 24px" }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--heading)", marginBottom: 16 }}>
-          Report Configuration
-        </div>
-        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "flex-end" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            <label style={{ fontSize: 12, color: "var(--muted)", fontWeight: 500 }}>From</label>
+      {/* Config */}
+      <div className="card" style={{ padding: "18px 20px" }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--heading)", marginBottom: 14 }}>Generate Report</div>
+        <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontSize: 11, color: "var(--muted)" }}>Month</label>
             <input
               className="input"
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              style={{ width: 150 }}
+              type="month"
+              value={month.slice(0, 7)}
+              onChange={(e) => setMonth(`${e.target.value}-01`)}
+              style={{ width: 160 }}
             />
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            <label style={{ fontSize: 12, color: "var(--muted)", fontWeight: 500 }}>To</label>
-            <input
-              className="input"
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              style={{ width: 150 }}
-            />
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, paddingBottom: 2 }}>
-            <input
-              type="checkbox"
-              id="include-voided"
-              checked={includeVoided}
-              onChange={(e) => setIncludeVoided(e.target.checked)}
-              style={{ accentColor: "var(--primary)", width: 14, height: 14 }}
-            />
-            <label htmlFor="include-voided" style={{ fontSize: 12.5, color: "var(--body)", cursor: "pointer" }}>
-              Include voided entries
-            </label>
-          </div>
-          <button
-            className="btn btn-primary"
-            onClick={generate}
-            disabled={loading}
-            style={{ height: 36, gap: 6 }}
-          >
-            {loading ? <span className="spinner" /> : <><IconRefresh size={13} /> Generate report</>}
+          <button className="btn btn-primary" onClick={generate} disabled={loading}>
+            {loading ? <><span className="spinner" /> Generating…</> : <><IconFile size={13} /> Generate Report</>}
           </button>
         </div>
+        {error && (
+          <div style={{ marginTop: 12, padding: "8px 12px", borderRadius: 6, background: "var(--danger-dim)", color: "var(--danger)", fontSize: 12.5 }}>
+            {error}
+          </div>
+        )}
       </div>
 
-      {/* Error */}
-      {error && (
-        <div style={{
-          padding: "12px 16px", borderRadius: 8,
-          background: "var(--danger-dim)", border: "1px solid #f8717155",
-          color: "var(--danger)", fontSize: 13,
-        }}>
-          {error}
-        </div>
-      )}
-
-      {/* Loading */}
-      {loading && !report && (
-        <div style={{ padding: 64, display: "grid", placeItems: "center" }}>
-          <div style={{ textAlign: "center" }}>
-            <span className="spinner" style={{ width: 28, height: 28, margin: "0 auto 16px" }} />
-            <div style={{ fontSize: 13, color: "var(--muted)" }}>Generating audit report…</div>
-            <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>This may take 15–30 seconds</div>
+      {/* Loading state */}
+      {loading && (
+        <div className="card" style={{ padding: "48px 24px", display: "grid", placeItems: "center", textAlign: "center" }}>
+          <div className="spinner" style={{ width: 28, height: 28, margin: "0 auto 14px" }} />
+          <div style={{ color: "var(--primary)", fontWeight: 500, fontSize: 14 }}>Generating your report…</div>
+          <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 4 }}>
+            Analysing transactions, budgets, goals and net worth
           </div>
         </div>
       )}
 
-      {/* Report */}
-      {report && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* Report Header */}
-          <div className="card" style={{ padding: "18px 22px" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: 9,
-                  background: "var(--primary-faint)", border: "1px solid var(--primary-dim)",
-                  display: "grid", placeItems: "center",
-                }}>
-                  <IconFile size={16} stroke="var(--primary)" />
-                </div>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: "var(--heading)" }}>
-                    Audit Report
-                  </div>
-                  <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
-                    {report.date_from} → {report.date_to} · Generated {new Date(report.generated_at).toLocaleString()}
-                  </div>
-                </div>
+      {/* Report content */}
+      {report && !loading && (
+        <div className="card fade-in" style={{ padding: 0, overflow: "hidden" }}>
+          {/* Header */}
+          <div style={{ padding: "16px 22px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "var(--heading)" }}>
+                📊 {new Date(report.month).toLocaleDateString("en-US", { month: "long", year: "numeric" })} Report
               </div>
-              <button
-                className="btn btn-ghost btn-sm"
-                onClick={downloadMarkdown}
-                style={{ gap: 6 }}
-              >
-                <IconDownload size={13} /> Download .md
-              </button>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
+                Generated {new Date(report.generated_at).toLocaleString()}
+              </div>
             </div>
-
-            {/* Summary Stats */}
-            {Object.keys(report.summary).length > 0 && (
-              <div style={{ marginTop: 16, display: "flex", gap: 20, flexWrap: "wrap" }}>
-                {Object.entries(report.summary).map(([k, v]) => (
-                  <div key={k}>
-                    <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "capitalize", marginBottom: 3 }}>
-                      {k.replace(/_/g, " ")}
-                    </div>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: "var(--heading)", fontFamily: "var(--font-mono)" }}>
-                      {String(v)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="btn btn-ghost btn-sm" onClick={generate}><IconRefresh size={12} /> Regenerate</button>
+              <button className="btn btn-ghost btn-sm" onClick={downloadReport}><IconDownload size={12} /> Download</button>
+            </div>
           </div>
 
-          {/* Markdown Report Body */}
-          <div className="card" style={{ padding: "28px 32px" }}>
-            <div className="md" dangerouslySetInnerHTML={{ __html: markdownToHtml(report.report_markdown) }} />
-          </div>
-        </div>
-      )}
-
-      {/* Empty State */}
-      {!report && !error && !loading && (
-        <div style={{
-          padding: "56px 24px", textAlign: "center",
-          border: "1px dashed var(--border)", borderRadius: 12,
-        }}>
-          <IconFile size={36} stroke="var(--border-strong)" style={{ margin: "0 auto 14px" }} />
-          <div style={{ fontSize: 14, color: "var(--body)", marginBottom: 6 }}>No report generated yet</div>
-          <div style={{ fontSize: 12, color: "var(--muted)" }}>
-            Select a date range above and click &quot;Generate report&quot; to create an AI audit report.
+          {/* Markdown rendered as pre-wrap */}
+          <div style={{ padding: "20px 24px" }}>
+            <pre style={{
+              fontFamily: "var(--font-sans, sans-serif)",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              color: "var(--body)",
+              fontSize: 13.5,
+              lineHeight: 1.7,
+              margin: 0,
+            }}>
+              {report.report_markdown}
+            </pre>
           </div>
         </div>
       )}
     </div>
   );
-}
-
-// Minimal markdown-to-HTML converter for report display
-function markdownToHtml(md: string): string {
-  return md
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/^### (.+)$/gm, "<h3>$1</h3>")
-    .replace(/^## (.+)$/gm, "<h2>$1</h2>")
-    .replace(/^# (.+)$/gm, "<h1>$1</h1>")
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.+?)\*/g, "<em>$1</em>")
-    .replace(/`(.+?)`/g, "<code>$1</code>")
-    .replace(/^---$/gm, "<hr>")
-    .replace(/^- (.+)$/gm, "<li>$1</li>")
-    .replace(/(<li>.*<\/li>\n?)+/g, (m) => `<ul>${m}</ul>`)
-    .replace(/\n\n/g, "<br><br>")
-    .replace(/\n/g, "<br>");
 }

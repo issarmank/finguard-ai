@@ -17,28 +17,28 @@ import {
 import type { TextToSQLResponse } from "@/types/api";
 
 const EXAMPLE_QUERIES = [
-  "Total revenue last 30 days",
-  "Accounts with highest debit volume",
-  "All voided entries",
-  "Top 5 expense accounts this month",
-  "Cash balance trend by week",
+  "How much did I spend on food this month?",
+  "Show my top 5 spending categories",
+  "What is my total income vs expenses last 30 days?",
+  "List my largest transactions over $100",
+  "What was my net worth last week?",
 ];
 
 const TIPS = [
   {
     Icon: IconShield,
     title: "Read-only by design",
-    body: "Generated queries are sandboxed to SELECT statements scoped to your tenant.",
+    body: "Generated queries are sandboxed to SELECT statements scoped to your account.",
   },
   {
     Icon: IconLayers,
     title: "Schema-aware",
-    body: "Knows your chart of accounts, ledger lines, and journal entry status field.",
+    body: "Knows your transactions, categories, accounts, budgets, and goals.",
   },
   {
     Icon: IconClock,
-    title: "Streamed results",
-    body: "Typical query returns in ~1.2s. Long-running scans surface progress.",
+    title: "Fast results",
+    body: "Typical query returns in ~1.2s. Ask anything about your financial data.",
   },
 ];
 
@@ -114,10 +114,10 @@ export default function AIQueryPage() {
               marginBottom: 8,
             }}
           >
-            Ask anything about your ledger
+            Ask anything about your finances
           </h1>
           <p style={{ color: "var(--muted)", fontSize: 14, maxWidth: 560, margin: "0 auto" }}>
-            Plain-English questions become safe, read-only SQL against your tenant&apos;s ledger.
+            Plain-English questions become safe, read-only SQL against your personal finance data.
             Results land in seconds.
           </p>
         </div>
@@ -366,7 +366,7 @@ export default function AIQueryPage() {
                 <div className="spinner" style={{ margin: "0 auto 14px" }} />
                 <div style={{ color: "var(--primary)", fontWeight: 500, fontSize: 13 }}>Thinking…</div>
                 <div style={{ color: "var(--muted)", fontSize: 11.5, marginTop: 4 }}>
-                  Generating SQL · running against ledger
+                  Generating SQL · running against your data
                 </div>
               </div>
             </div>
