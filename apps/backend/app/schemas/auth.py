@@ -5,18 +5,9 @@ from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 
 
 class RegisterRequest(BaseModel):
-    tenant_name: str
-    tenant_slug: str
     email: EmailStr
     password: str
-
-    @field_validator("tenant_slug")
-    @classmethod
-    def slug_must_be_valid(cls, v: str) -> str:
-        import re
-        if not re.match(r"^[a-z0-9-]+$", v):
-            raise ValueError("Slug must be lowercase alphanumeric with hyphens only")
-        return v
+    name: str = ""
 
     @field_validator("password")
     @classmethod
@@ -42,6 +33,4 @@ class UserResponse(BaseModel):
 
     id: uuid.UUID
     email: str
-    role: str
-    tenant_id: uuid.UUID
     created_at: datetime
