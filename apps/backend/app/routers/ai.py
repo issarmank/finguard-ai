@@ -1,46 +1,41 @@
 from fastapi import APIRouter
 
-from app.dependencies import CurrentTenantId, DBSession, TenantContext
+from app.dependencies import CurrentUserId, DBSession
 from app.schemas.ai import (
-    AuditReportRequest,
-    AuditReportResponse,
-    FraudScanRequest,
-    FraudScanResponse,
+    InsightsScanRequest,
+    InsightsResponse,
+    MonthlyReportRequest,
+    MonthlyReportResponse,
     TextToSQLRequest,
     TextToSQLResponse,
 )
 from app.services import ai_service
 
-router = APIRouter(dependencies=[TenantContext])
+router = APIRouter()
 
 
 @router.post("/query", response_model=TextToSQLResponse)
 async def natural_language_query(
     body: TextToSQLRequest,
+    user_id: CurrentUserId,
     db: DBSession,
 ) -> TextToSQLResponse:
-    return await ai_service.text_to_sql(db, body.query)
+    return await ai_service.text_to_sql(db, user_id, body.query)
 
 
-@router.post("/fraud-scan", response_model=FraudScanResponse)
-async def run_fraud_scan(
-    body: FraudScanRequest,
-    tenant_id: CurrentTenantId,
+@router.post("/insights", response_model=InsightsResponse)
+async def run_insights(
+    body: InsightsScanRequest,
+    user_id: CurrentUserId,
     db: DBSession,
-) -> FraudScanResponse:
-    return await ai_service.fraud_scan(db, tenant_id, days_back=body.days_back)
+) -> InsightsResponse:
+    return await ai_service.get_insights(db, user_id, days_back=body.days_back)
 
 
-@router.post("/audit-report", response_model=AuditReportResponse)
-async def generate_audit_report(
-    body: AuditReportRequest,
-    tenant_id: CurrentTenantId,
+@router.post("/report", response_model=MonthlyReportResponse)
+async def generate_report(
+    body: MonthlyReportRequest,
+    user_id: CurrentUserId,
     db: DBSession,
-) -> AuditReportResponse:
-    return await ai_service.generate_audit_report(
-        db,
-        tenant_id,
-        date_from=body.date_from,
-        date_to=body.date_to,
-        include_voided=body.include_voided,
-    )
+) -> MonthlyReportResponse:
+    return await ai_service.generate_monthly_report(db, user_id, body.month)

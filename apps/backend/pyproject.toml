@@ -15,6 +15,7 @@ dependencies = [
     "sqlglot>=25.0",
     "python-dotenv>=1.0",
     "faker>=25.0",
+    "plaid-python>=28.0",
 ]
 
 [dependency-groups]

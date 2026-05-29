@@ -2,18 +2,18 @@ import json
 import re
 import uuid
 from datetime import date, datetime, timedelta, timezone
+from typing import Any
 
 import sqlglot
 from fastapi import HTTPException, status
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.account import Account
-from app.models.journal import JournalEntry, LedgerLine
+from app.models.finance import Category, FinancialAccount, Transaction
 from app.schemas.ai import (
-    AuditReportResponse,
-    FraudFlag,
-    FraudScanResponse,
+    InsightFlag,
+    InsightsResponse,
+    MonthlyReportResponse,
     TextToSQLResponse,
 )
 from app.services.openrouter_client import chat_completion
@@ -25,20 +25,26 @@ MODEL = "google/gemini-2.5-flash"
 # ---------------------------------------------------------------------------
 
 _SCHEMA_CONTEXT = """
-Tables (already tenant-scoped via Row-Level Security — do NOT filter by tenant_id):
+Tables (already user-scoped — always filter by the provided user_id):
 
-  accounts(id, code, name, type, normal_side, is_active)
-    type: asset | liability | equity | income | expense
-    normal_side: debit | credit
+  financial_accounts(id, user_id, name, type, balance, currency, is_active, last_synced)
+    type: checking | savings | credit | investment | loan | cash
 
-  journal_entries(id, entry_date, description, reference, status, is_locked, created_at)
-    status: draft | posted | voided
+  categories(id, user_id, name, icon, color, type)
+    type: income | expense | transfer
+    user_id may be NULL for system default categories
 
-  ledger_lines(id, journal_entry_id, account_id, side, amount, memo)
-    side: debit | credit
-    amount: NUMERIC(19,4), always positive
+  transactions(id, user_id, account_id, category_id, amount, date, description, merchant, pending, notes, created_at)
+    amount: NUMERIC — positive = expense/debit, negative = income/credit
+    pending: BOOLEAN — exclude pending transactions from spend calculations
 
-  audit_logs(id, action, entity_type, entity_id, created_at)
+  budgets(id, user_id, category_id, month, amount)
+    month: DATE — first day of month (e.g. '2024-01-01')
+
+  goals(id, user_id, account_id, name, target_amount, current_amount, target_date, emoji, created_at)
+
+  net_worth_snapshots(id, user_id, snapshot_at, assets, liabilities, net_worth)
+    net_worth: NUMERIC GENERATED ALWAYS AS (assets - liabilities) STORED
 """
 
 _SQL_RULES = """
@@ -46,7 +52,13 @@ RULES (violations will cause an error):
 1. Only SELECT statements — no INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, TRUNCATE.
 2. JOINs and aggregations (SUM, COUNT, AVG, GROUP BY) are allowed.
 3. Always include LIMIT ≤ 500.
-4. Return ONLY the raw SQL — no markdown fences, no explanations.
+4. Always filter by the provided user_id parameter using a literal UUID value in the WHERE clause.
+5. Return ONLY the raw SQL — no markdown fences, no explanations.
+6. This is PostgreSQL — use PostgreSQL date syntax only:
+   - Relative dates: CURRENT_DATE - INTERVAL '30 days'  (NOT DATE('now','-30 days'))
+   - Current timestamp: NOW()  (NOT datetime('now'))
+   - Date truncation: DATE_TRUNC('month', date_column)
+   - Never use SQLite functions like strftime(), julianday(), or DATE('now', modifier).
 """
 
 
@@ -97,11 +109,13 @@ def _validate_sql(sql: str) -> None:
 
 async def text_to_sql(
     db: AsyncSession,
+    user_id: uuid.UUID,
     query: str,
 ) -> TextToSQLResponse:
     system_prompt = (
-        "You are a SQL expert for a double-entry financial ledger.\n"
-        f"{_SCHEMA_CONTEXT}\n{_SQL_RULES}"
+        "You are a SQL expert for a personal finance application.\n"
+        f"{_SCHEMA_CONTEXT}\n{_SQL_RULES}\n"
+        f"The current user's UUID is: {user_id}"
     )
 
     raw = await chat_completion(
@@ -131,96 +145,83 @@ async def text_to_sql(
 
 
 # ---------------------------------------------------------------------------
-# Fraud Scan
+# AI Insights (anomaly detection + proactive tips)
 # ---------------------------------------------------------------------------
 
-async def fraud_scan(
+async def get_insights(
     db: AsyncSession,
-    tenant_id: uuid.UUID,
+    user_id: uuid.UUID,
     days_back: int = 30,
-) -> FraudScanResponse:
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days_back)
+) -> InsightsResponse:
+    cutoff = date.today() - timedelta(days=days_back)
 
-    # Total entries in window
-    total = await db.scalar(
-        select(func.count(JournalEntry.id)).where(
-            JournalEntry.tenant_id == tenant_id,
-            JournalEntry.created_at >= cutoff,
+    # Spending by category
+    spending_rows = await db.execute(
+        select(
+            Category.name,
+            func.sum(Transaction.amount).label("total"),
+            func.count(Transaction.id).label("count"),
         )
-    ) or 0
-
-    # Round-amount signal: entries with any line that is a multiple of 1000 >= 1000
-    round_count = await db.scalar(
-        select(func.count(func.distinct(LedgerLine.journal_entry_id)))
-        .join(JournalEntry, JournalEntry.id == LedgerLine.journal_entry_id)
+        .join(Transaction, Transaction.category_id == Category.id)
         .where(
-            JournalEntry.tenant_id == tenant_id,
-            JournalEntry.created_at >= cutoff,
-            func.mod(LedgerLine.amount, 1000) == 0,
-            LedgerLine.amount >= 1000,
+            Transaction.user_id == user_id,
+            Transaction.date >= cutoff,
+            Transaction.pending.is_(False),
         )
-    ) or 0
-
-    # Off-hours signal: entries created between 11pm and 5am
-    off_hours_count = await db.scalar(
-        select(func.count(JournalEntry.id)).where(
-            JournalEntry.tenant_id == tenant_id,
-            JournalEntry.created_at >= cutoff,
-            func.extract("hour", JournalEntry.created_at).in_(
-                [23, 0, 1, 2, 3, 4]
-            ),
-        )
-    ) or 0
-
-    # Duplicate reference signal
-    dup_refs = await db.scalar(
-        select(func.count()).select_from(
-            select(JournalEntry.reference)
-            .where(
-                JournalEntry.tenant_id == tenant_id,
-                JournalEntry.created_at >= cutoff,
-                JournalEntry.reference.isnot(None),
-            )
-            .group_by(JournalEntry.reference)
-            .having(func.count(JournalEntry.id) > 1)
-            .subquery()
-        )
-    ) or 0
-
-    # Sample recent entries for LLM context
-    recent = await db.scalars(
-        select(JournalEntry)
-        .where(JournalEntry.tenant_id == tenant_id, JournalEntry.created_at >= cutoff)
-        .order_by(JournalEntry.created_at.desc())
-        .limit(25)
+        .group_by(Category.name)
+        .order_by(func.sum(Transaction.amount).desc())
     )
+    spending = [
+        {"category": r.name, "total": float(r.total or 0), "count": r.count}
+        for r in spending_rows.all()
+    ]
 
-    context = {
+    # Recent transactions for LLM
+    recent_rows = await db.execute(
+        select(Transaction, Category.name.label("cat_name"))
+        .outerjoin(Category, Transaction.category_id == Category.id)
+        .where(Transaction.user_id == user_id, Transaction.date >= cutoff)
+        .order_by(Transaction.date.desc())
+        .limit(50)
+    )
+    recent = [
+        {
+            "date": str(r.Transaction.date),
+            "description": r.Transaction.description,
+            "merchant": r.Transaction.merchant,
+            "amount": float(r.Transaction.amount),
+            "category": r.cat_name,
+        }
+        for r in recent_rows.all()
+    ]
+
+    # Account summary
+    accounts_rows = await db.execute(
+        select(FinancialAccount).where(
+            FinancialAccount.user_id == user_id,
+            FinancialAccount.is_active.is_(True),
+        )
+    )
+    accounts = [
+        {"name": a.name, "type": a.type, "balance": float(a.balance)}
+        for a in accounts_rows.scalars().all()
+    ]
+
+    context: dict[str, Any] = {
         "period_days": days_back,
-        "total_entries": total,
-        "signals": {
-            "round_amounts": int(round_count),
-            "off_hours_entries": int(off_hours_count),
-            "duplicate_references": int(dup_refs),
-        },
-        "recent_entries": [
-            {
-                "date": str(e.entry_date),
-                "description": e.description,
-                "reference": e.reference,
-                "status": e.status,
-                "created_at": e.created_at.isoformat() if e.created_at else None,
-            }
-            for e in recent.all()
-        ],
+        "spending_by_category": spending,
+        "recent_transactions": recent,
+        "accounts": accounts,
     }
 
     system_prompt = (
-        "You are a financial fraud detection expert analysing ledger transactions.\n"
+        "You are a personal finance AI coach analysing a user's spending patterns.\n"
+        "Detect: duplicate charges, subscription price increases, unusual merchant activity, "
+        "budget overspend risks, and recurring patterns worth flagging.\n"
         "Return a JSON object with exactly these fields:\n"
-        '{"risk_score": <float 0.0-1.0>, "risk_level": <"low"|"medium"|"high"|"critical">, '
+        '{"risk_score": <float 0.0-1.0>, "risk_level": <"low"|"medium"|"high">, '
         '"flags": [{"flag_type": <str>, "description": <str>}], '
-        '"explanation": <str>, "recommended_action": <str>}\n'
+        '"summary": <str>, "tips": [<str>]}\n'
         "Return ONLY the JSON object."
     )
 
@@ -235,13 +236,13 @@ async def fraud_scan(
 
     try:
         data = json.loads(raw)
-        return FraudScanResponse(
+        return InsightsResponse(
             risk_score=float(data["risk_score"]),
             risk_level=data["risk_level"],
-            flags=[FraudFlag(**f) for f in data.get("flags", [])],
-            explanation=data["explanation"],
-            recommended_action=data["recommended_action"],
-            entries_analyzed=total,
+            flags=[InsightFlag(**f) for f in data.get("flags", [])],
+            summary=data["summary"],
+            tips=data.get("tips", []),
+            transactions_analyzed=len(recent),
         )
     except (KeyError, ValueError) as e:
         raise HTTPException(
@@ -251,92 +252,114 @@ async def fraud_scan(
 
 
 # ---------------------------------------------------------------------------
-# Audit Report
+# Monthly Report
 # ---------------------------------------------------------------------------
 
-async def generate_audit_report(
+async def generate_monthly_report(
     db: AsyncSession,
-    tenant_id: uuid.UUID,
-    date_from: date,
-    date_to: date,
-    include_voided: bool = False,
-) -> AuditReportResponse:
-    entry_query = select(func.count(JournalEntry.id)).where(
-        JournalEntry.tenant_id == tenant_id,
-        JournalEntry.entry_date >= date_from,
-        JournalEntry.entry_date <= date_to,
-    )
-    total_entries = await db.scalar(entry_query) or 0
+    user_id: uuid.UUID,
+    month: date,
+) -> MonthlyReportResponse:
+    month_start = month.replace(day=1)
+    if month_start.month == 12:
+        month_end = month_start.replace(year=month_start.year + 1, month=1, day=1)
+    else:
+        month_end = month_start.replace(month=month_start.month + 1, day=1)
 
-    voided_entries = await db.scalar(
-        entry_query.where(JournalEntry.status == "voided")  # type: ignore[arg-type]
-    ) or 0
-
-    # Account activity for the period
-    balance_rows = await db.execute(
+    # Spending by category
+    spending_rows = await db.execute(
         select(
-            Account.code,
-            Account.name,
-            Account.type,
-            func.coalesce(
-                func.sum(LedgerLine.amount).filter(LedgerLine.side == "debit"), 0
-            ).label("debits"),
-            func.coalesce(
-                func.sum(LedgerLine.amount).filter(LedgerLine.side == "credit"), 0
-            ).label("credits"),
+            Category.name,
+            Category.type,
+            func.sum(Transaction.amount).label("total"),
+            func.count(Transaction.id).label("count"),
         )
-        .join(LedgerLine, LedgerLine.account_id == Account.id)
-        .join(JournalEntry, JournalEntry.id == LedgerLine.journal_entry_id)
+        .join(Transaction, Transaction.category_id == Category.id)
         .where(
-            Account.tenant_id == tenant_id,
-            JournalEntry.entry_date >= date_from,
-            JournalEntry.entry_date <= date_to,
+            Transaction.user_id == user_id,
+            Transaction.date >= month_start,
+            Transaction.date < month_end,
+            Transaction.pending.is_(False),
         )
-        .group_by(Account.code, Account.name, Account.type)
-        .order_by(Account.code)
+        .group_by(Category.name, Category.type)
+        .order_by(func.sum(Transaction.amount).desc())
     )
-    accounts = [
+    spending = [
         {
-            "code": r.code,
-            "name": r.name,
+            "category": r.name,
             "type": r.type,
-            "debits": float(r.debits),
-            "credits": float(r.credits),
-            "net": float(r.debits) - float(r.credits),
+            "total": float(r.total or 0),
+            "count": r.count,
         }
-        for r in balance_rows.all()
+        for r in spending_rows.all()
     ]
 
-    total_volume = sum(a["debits"] for a in accounts)
+    # Net worth snapshot for month
+    from app.models.finance import NetWorthSnapshot
+    nw_rows = await db.execute(
+        select(NetWorthSnapshot)
+        .where(
+            NetWorthSnapshot.user_id == user_id,
+            NetWorthSnapshot.snapshot_at >= month_start,
+            NetWorthSnapshot.snapshot_at < month_end,
+        )
+        .order_by(NetWorthSnapshot.snapshot_at.desc())
+        .limit(1)
+    )
+    nw = nw_rows.scalar_one_or_none()
+
+    # Goals progress
+    from app.models.finance import Goal
+    goals_rows = await db.execute(select(Goal).where(Goal.user_id == user_id))
+    goals = [
+        {
+            "name": g.name,
+            "target": float(g.target_amount),
+            "current": float(g.current_amount),
+            "pct": min(100, int(float(g.current_amount) / float(g.target_amount) * 100)) if g.target_amount else 0,
+        }
+        for g in goals_rows.scalars().all()
+    ]
+
+    total_income = sum(abs(s["total"]) for s in spending if s["type"] == "income")
+    total_expense = sum(s["total"] for s in spending if s["type"] == "expense")
 
     summary = {
-        "date_from": str(date_from),
-        "date_to": str(date_to),
-        "total_entries": total_entries,
-        "voided_entries": voided_entries,
-        "total_debit_volume": total_volume,
-        "account_activity": accounts,
+        "month": month_start.isoformat(),
+        "total_income": total_income,
+        "total_expenses": total_expense,
+        "net_cashflow": total_income - total_expense,
+        "spending_by_category": spending,
+        "net_worth": {
+            "assets": float(nw.assets) if nw else None,
+            "liabilities": float(nw.liabilities) if nw else None,
+            "net_worth": float(nw.net_worth) if nw else None,
+        },
+        "goals": goals,
     }
 
     system_prompt = (
-        "You are a professional financial auditor writing a period audit report.\n"
-        "Generate a clear, structured markdown report. Include:\n"
-        "1. Executive Summary\n2. Period Activity\n3. Account Analysis\n"
-        "4. Risk Observations\n5. Conclusion\n"
-        "Be concise and professional. Use markdown headers and tables where useful."
+        "You are a personal finance advisor writing a friendly monthly money report.\n"
+        "Generate a clear, structured markdown report with these sections:\n"
+        "1. Money Health Score (out of 100, with brief reasoning)\n"
+        "2. Cash Flow Summary\n"
+        "3. Top Spending Categories\n"
+        "4. Net Worth Update\n"
+        "5. Goal Progress\n"
+        "6. Tips for Next Month\n"
+        "Be concise, encouraging, and actionable. Use markdown headers and bullet points."
     )
 
     report_md = await chat_completion(
         model=MODEL,
         messages=[
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"Generate audit report:\n{json.dumps(summary, indent=2)}"},
+            {"role": "user", "content": f"Generate monthly report:\n{json.dumps(summary, indent=2)}"},
         ],
     )
 
-    return AuditReportResponse(
-        date_from=date_from,
-        date_to=date_to,
+    return MonthlyReportResponse(
+        month=month_start,
         report_markdown=report_md,
         summary=summary,
         generated_at=datetime.now(timezone.utc),

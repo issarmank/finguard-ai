@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class TextToSQLRequest(BaseModel):
-    query: str = Field(..., min_length=3, description="Natural language question about your ledger data")
+    query: str = Field(..., min_length=3, description="Natural language question about your finances")
 
 
 class TextToSQLResponse(BaseModel):
@@ -16,33 +16,30 @@ class TextToSQLResponse(BaseModel):
     row_count: int
 
 
-class FraudScanRequest(BaseModel):
+class InsightsScanRequest(BaseModel):
     days_back: int = Field(30, ge=1, le=365, description="Number of days of transactions to analyse")
 
 
-class FraudFlag(BaseModel):
+class InsightFlag(BaseModel):
     flag_type: str
     description: str
 
 
-class FraudScanResponse(BaseModel):
+class InsightsResponse(BaseModel):
     risk_score: float
-    risk_level: Literal["low", "medium", "high", "critical"]
-    flags: list[FraudFlag]
-    explanation: str
-    recommended_action: str
-    entries_analyzed: int
+    risk_level: Literal["low", "medium", "high"]
+    flags: list[InsightFlag]
+    summary: str
+    tips: list[str]
+    transactions_analyzed: int
 
 
-class AuditReportRequest(BaseModel):
-    date_from: date
-    date_to: date
-    include_voided: bool = False
+class MonthlyReportRequest(BaseModel):
+    month: date = Field(..., description="Any date within the desired month")
 
 
-class AuditReportResponse(BaseModel):
-    date_from: date
-    date_to: date
+class MonthlyReportResponse(BaseModel):
+    month: date
     report_markdown: str
     summary: dict[str, Any]
     generated_at: datetime
