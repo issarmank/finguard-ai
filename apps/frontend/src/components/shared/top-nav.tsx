@@ -9,9 +9,6 @@ import {
   IconChevronDown,
   IconSearch,
   IconShield,
-  IconCheck,
-  IconPlus,
-  IconUsers,
   IconSettings,
 } from "@/components/icons";
 
@@ -23,12 +20,6 @@ interface TopNavProps {
   fraudCount?: number;
 }
 
-// Replace with real data from /tenants once you have the endpoint.
-const OTHER_TENANTS = [
-  { id: "t_globex", name: "Globex Holdings", plan: "Business", initial: "G" },
-  { id: "t_acme",   name: "Acme Corp",       plan: "Starter",  initial: "A" },
-];
-
 export function TopNav({
   tenantName,
   userName,
@@ -38,7 +29,7 @@ export function TopNav({
 }: TopNavProps) {
   const { user, logout } = useAuth();
   const router = useRouter();
-  const [openMenu, setOpenMenu] = useState<"tenant" | "user" | null>(null);
+  const [openMenu, setOpenMenu] = useState<"user" | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   // Close on outside click + Escape
@@ -127,66 +118,8 @@ export function TopNav({
         />
       </Link>
 
-      {/* Center: tenant pill (now a button) + search */}
+      {/* Center: search */}
       <div ref={wrapRef} style={{ display: "flex", alignItems: "center", gap: 16, maxWidth: 720, position: "relative" }}>
-        {/* TENANT BUTTON */}
-        <div style={{ position: "relative" }}>
-          <button
-            onClick={() => setOpenMenu(openMenu === "tenant" ? null : "tenant")}
-            aria-label="Switch workspace"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              height: 30,
-              padding: "0 10px 0 8px",
-              borderRadius: 6,
-              border: "1px solid var(--border)",
-              background:
-                openMenu === "tenant" ? "var(--surface-hover)" : "var(--surface)",
-              borderColor:
-                openMenu === "tenant" ? "var(--border-strong)" : "var(--border)",
-              fontSize: 12.5,
-              cursor: "pointer",
-              color: "var(--body)",
-              transition: "background .12s, border-color .12s",
-            }}
-          >
-            <span
-              style={{
-                width: 18,
-                height: 18,
-                borderRadius: 5,
-                background: "#1f2e28",
-                display: "grid",
-                placeItems: "center",
-                color: "var(--primary)",
-                fontSize: 10,
-                fontWeight: 600,
-              }}
-            >
-              {tenantName[0]?.toUpperCase()}
-            </span>
-            <span style={{ fontWeight: 500 }}>{tenantName}</span>
-            <IconChevronDown
-              size={14}
-              stroke="var(--muted)"
-              style={{
-                transform: openMenu === "tenant" ? "rotate(180deg)" : "rotate(0)",
-                transition: "transform .15s",
-              }}
-            />
-          </button>
-
-          {openMenu === "tenant" && (
-            <TenantMenu
-              currentName={tenantName}
-              currentRole={userRole}
-              onClose={() => setOpenMenu(null)}
-            />
-          )}
-        </div>
-
         {/* SEARCH */}
         <div style={{ position: "relative", flex: 1, maxWidth: 420 }}>
           <IconSearch
@@ -421,221 +354,3 @@ export function TopNav({
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// TenantMenu — the dropdown that opens from the workspace pill
-// ─────────────────────────────────────────────────────────────
-
-function TenantMenu({
-  currentName,
-  currentRole,
-  onClose,
-}: {
-  currentName: string;
-  currentRole: string;
-  onClose: () => void;
-}) {
-  const router = useRouter();
-
-  return (
-    <div
-      style={{
-        position: "absolute",
-        top: "calc(100% + 10px)",
-        left: 0,
-        width: 320,
-        background: "var(--surface)",
-        border: "1px solid var(--border)",
-        borderRadius: 10,
-        boxShadow: "0 16px 40px #00000066",
-        zIndex: 100,
-        overflow: "hidden",
-        animation: "fade-up .14s ease-out both",
-      }}
-    >
-      {/* Current workspace */}
-      <div
-        style={{
-          padding: "14px",
-          borderBottom: "1px solid var(--border)",
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-        }}
-      >
-        <div
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 8,
-            background: "linear-gradient(135deg, #6ee7b7, #34d399)",
-            display: "grid",
-            placeItems: "center",
-            color: "#04130c",
-            fontWeight: 700,
-            fontSize: 15,
-            flexShrink: 0,
-          }}
-        >
-          {currentName[0]?.toUpperCase()}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              fontSize: 13,
-              fontWeight: 600,
-              color: "var(--heading)",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {currentName}
-          </div>
-          <div style={{ fontSize: 11.5, color: "var(--muted)", textTransform: "capitalize" }}>
-            Current · {currentRole}
-          </div>
-        </div>
-        <IconCheck size={16} stroke="var(--primary)" />
-      </div>
-
-      {/* Other workspaces */}
-      {OTHER_TENANTS.length > 0 && (
-        <div>
-          <div
-            style={{
-              padding: "10px 14px 4px",
-              fontSize: 10,
-              color: "var(--muted)",
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-              fontWeight: 500,
-            }}
-          >
-            Switch workspace
-          </div>
-          {OTHER_TENANTS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => {
-                // TODO: call your real "switch tenant" endpoint here
-                console.log("switch to", t.id);
-                onClose();
-              }}
-              style={{
-                width: "100%",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "8px 14px",
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-                color: "var(--body)",
-                fontSize: 12.5,
-                transition: "background .12s",
-              }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.background = "var(--surface-hover)")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.background = "transparent")
-              }
-            >
-              <div
-                style={{
-                  width: 26,
-                  height: 26,
-                  borderRadius: 6,
-                  background: "#1f2e28",
-                  display: "grid",
-                  placeItems: "center",
-                  color: "var(--primary)",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  flexShrink: 0,
-                }}
-              >
-                {t.initial}
-              </div>
-              <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
-                <div
-                  style={{
-                    color: "var(--heading)",
-                    fontWeight: 500,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {t.name}
-                </div>
-                <div style={{ fontSize: 11, color: "var(--muted)" }}>{t.plan}</div>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Actions */}
-      <div style={{ borderTop: "1px solid var(--border)", padding: "6px 0" }}>
-        <button
-          onClick={() => {
-            router.push("/settings");
-            onClose();
-          }}
-          style={menuItemStyle}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.background = "var(--surface-hover)")
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.background = "transparent")
-          }
-        >
-          <IconSettings size={14} stroke="var(--muted)" />
-          <span>Workspace settings</span>
-        </button>
-        <button
-          onClick={onClose}
-          style={menuItemStyle}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.background = "var(--surface-hover)")
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.background = "transparent")
-          }
-        >
-          <IconUsers size={14} stroke="var(--muted)" />
-          <span>Invite members</span>
-        </button>
-        <button
-          onClick={onClose}
-          style={menuItemStyle}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.background = "var(--surface-hover)")
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.background = "transparent")
-          }
-        >
-          <IconPlus size={14} stroke="var(--primary)" />
-          <span style={{ color: "var(--primary)" }}>Create new workspace</span>
-        </button>
-      </div>
-    </div>
-  );
-}
-
-const menuItemStyle: React.CSSProperties = {
-  width: "100%",
-  display: "flex",
-  alignItems: "center",
-  gap: 10,
-  padding: "8px 14px",
-  background: "transparent",
-  border: "none",
-  cursor: "pointer",
-  color: "var(--body)",
-  fontSize: 12.5,
-  textAlign: "left",
-  transition: "background .12s",
-};

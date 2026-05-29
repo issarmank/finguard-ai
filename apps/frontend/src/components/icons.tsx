@@ -46,3 +46,9 @@ export const IconMoon = (p: IconProps) => <Icon {...p}><path d="M21 13A9 9 0 1 1
 export const IconZap = (p: IconProps) => <Icon {...p}><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></Icon>;
 export const IconEye = (p: IconProps) => <Icon {...p}><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></Icon>;
 export const IconRoundDollar = (p: IconProps) => <Icon {...p}><circle cx="12" cy="12" r="9"/><path d="M9 9c0-1.5 1.5-2 3-2 3 0 3 2 3 2s0 2-3 2-3 2-3 2 0 2 3 2 3-2 3-2"/><path d="M12 5v2M12 17v2"/></Icon>;
+export const IconCreditCard = (p: IconProps) => <Icon {...p}><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></Icon>;
+export const IconPieChart = (p: IconProps) => <Icon {...p}><path d="M22 12A10 10 0 1 1 12 2v10z"/><path d="M12 2a10 10 0 0 1 10 10H12z"/></Icon>;
+export const IconTarget = (p: IconProps) => <Icon {...p}><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/></Icon>;
+export const IconTrendingUp = (p: IconProps) => <Icon {...p}><path d="M3 17l5-5 4 4 7-8"/><path d="M17 8h4v4"/></Icon>;
+export const IconLink2 = (p: IconProps) => <Icon {...p}><path d="M10 13a5 5 0 0 0 7.5.6l2-2a5 5 0 0 0-7-7.1l-1.1 1.1"/><path d="M14 11a5 5 0 0 0-7.5-.6l-2 2a5 5 0 0 0 7 7.1l1.1-1.1"/></Icon>;
+export const IconWallet = (p: IconProps) => <Icon {...p}><path d="M20 7H4a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M16 3H8L4 7h16z"/><circle cx="17" cy="13" r="1" fill="currentColor" stroke="none"/></Icon>;
