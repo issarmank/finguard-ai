@@ -11,32 +11,18 @@ import type { TokenResponse } from "@/types/api";
 export default function RegisterPage() {
   const router = useRouter();
   const { login } = useAuth();
-  const [form, setForm] = useState({
-    tenant_name: "",
-    tenant_slug: "",
-    email: "",
-    password: "",
-  });
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const { name, value } = e.target;
-    setForm((prev) => {
-      const next = { ...prev, [name]: value };
-      if (name === "tenant_name") {
-        next.tenant_slug = value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-      }
-      return next;
-    });
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
     try {
-      const res = await api.post<TokenResponse>("/auth/register", form);
+      const res = await api.post<TokenResponse>("/auth/register", { name, email, password });
       login(res.access_token);
       router.push("/dashboard");
     } catch (err) {
@@ -47,8 +33,9 @@ export default function RegisterPage() {
   }
 
   return (
-    <div style={{ width: "100%", maxWidth: 440 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 32, justifyContent: "center" }}>
+    <div style={{ width: "100%", maxWidth: 400 }}>
+      {/* Logo */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24, justifyContent: "center" }}>
         <div style={{
           width: 32, height: 32, borderRadius: 9,
           background: "linear-gradient(135deg, #6ee7b7, #34d399)",
@@ -64,10 +51,10 @@ export default function RegisterPage() {
 
       <div className="card" style={{ padding: 28 }}>
         <h1 style={{ fontSize: 20, fontWeight: 600, color: "var(--heading)", marginBottom: 4 }}>
-          Create your organisation
+          Create your account
         </h1>
         <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 24 }}>
-          You&apos;ll be set up as the Admin for your workspace
+          Start tracking your spending, budgets, and net worth
         </p>
 
         {error && (
@@ -82,41 +69,26 @@ export default function RegisterPage() {
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <label style={{ fontSize: 12.5, color: "var(--body)", fontWeight: 500 }}>Organisation name</label>
-            <input
-              className="input"
-              name="tenant_name"
-              placeholder="Northwind Trading Co."
-              value={form.tenant_name}
-              onChange={handleChange}
-              required
-            />
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <label style={{ fontSize: 12.5, color: "var(--body)", fontWeight: 500 }}>
-              Workspace slug
-              <span style={{ color: "var(--muted)", fontWeight: 400, marginLeft: 6 }}>auto-generated</span>
+              Name <span style={{ color: "var(--muted)", fontWeight: 400 }}></span>
             </label>
             <input
               className="input"
-              name="tenant_slug"
-              placeholder="northwind-trading"
-              value={form.tenant_slug}
-              onChange={handleChange}
-              required
-              pattern="^[a-z0-9-]+$"
-              title="Lowercase letters, numbers and hyphens only"
+              type="text"
+              placeholder="Alex Johnson"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoComplete="name"
             />
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <label style={{ fontSize: 12.5, color: "var(--body)", fontWeight: 500 }}>Admin email</label>
+            <label style={{ fontSize: 12.5, color: "var(--body)", fontWeight: 500 }}>Email</label>
             <input
               className="input"
               type="email"
-              name="email"
-              placeholder="admin@company.com"
-              value={form.email}
-              onChange={handleChange}
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="email"
             />
@@ -126,10 +98,9 @@ export default function RegisterPage() {
             <input
               className="input"
               type="password"
-              name="password"
               placeholder="Min. 8 characters"
-              value={form.password}
-              onChange={handleChange}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               required
               minLength={8}
               autoComplete="new-password"
@@ -141,7 +112,7 @@ export default function RegisterPage() {
             disabled={loading}
             style={{ marginTop: 4, height: 38 }}
           >
-            {loading ? <span className="spinner" /> : "Create organisation"}
+            {loading ? <span className="spinner" /> : "Create account"}
           </button>
         </form>
 

@@ -34,7 +34,7 @@ export default function LoginPage() {
   return (
     <div style={{ width: "100%", maxWidth: 400 }}>
       {/* Logo */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 32, justifyContent: "center" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24, justifyContent: "center" }}>
         <div style={{
           width: 32, height: 32, borderRadius: 9,
           background: "linear-gradient(135deg, #6ee7b7, #34d399)",
@@ -53,7 +53,7 @@ export default function LoginPage() {
           Sign in to your account
         </h1>
         <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 24 }}>
-          Enter your credentials to access your workspace
+          Enter your credentials to access your finances
         </p>
 
         {error && (
@@ -72,7 +72,7 @@ export default function LoginPage() {
             <input
               className="input"
               type="email"
-              placeholder="you@company.com"
+              placeholder="you@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -104,7 +104,7 @@ export default function LoginPage() {
         <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 20, textAlign: "center" }}>
           Don&apos;t have an account?{" "}
           <Link href="/register" style={{ color: "var(--primary)", textDecoration: "none", fontWeight: 500 }}>
-            Register your organisation
+            Register
           </Link>
         </p>
       </div>
