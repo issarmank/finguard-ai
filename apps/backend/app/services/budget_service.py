@@ -87,8 +87,15 @@ async def upsert_budget(
     return b
 
 
-async def delete_budget(db: AsyncSession, user_id: uuid.UUID, budget_id: uuid.UUID) -> bool:
-    b = await db.scalar(select(Budget).where(Budget.id == budget_id, Budget.user_id == user_id))
+async def delete_budget(db: AsyncSession, user_id: uuid.UUID, category_id: uuid.UUID, month: date) -> bool:
+    month_start = month.replace(day=1)
+    b = await db.scalar(
+        select(Budget).where(
+            Budget.user_id == user_id,
+            Budget.category_id == category_id,
+            Budget.month == month_start,
+        )
+    )
     if not b:
         return False
     await db.delete(b)

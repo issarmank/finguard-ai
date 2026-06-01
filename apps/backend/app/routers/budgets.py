@@ -37,12 +37,14 @@ async def upsert_budget(
     return BudgetOut(**match)
 
 
-@router.delete("/{budget_id}", status_code=204)
+@router.delete("/{category_id}", status_code=204)
 async def delete_budget(
-    budget_id: uuid.UUID,
+    category_id: uuid.UUID,
     user_id: CurrentUserId,
     db: DBSession,
+    month: date | None = None,
 ) -> None:
-    ok = await budget_service.delete_budget(db, user_id, budget_id)
+    m = (month or date.today()).replace(day=1)
+    ok = await budget_service.delete_budget(db, user_id, category_id, m)
     if not ok:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Budget not found")
