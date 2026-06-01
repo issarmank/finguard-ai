@@ -21,7 +21,8 @@ async def create_goal(
     db: DBSession,
 ) -> GoalOut:
     g = await goal_service.create_goal(
-        db, user_id,
+        db,
+        user_id,
         name=body.name,
         target_amount=body.target_amount,
         current_amount=body.current_amount,

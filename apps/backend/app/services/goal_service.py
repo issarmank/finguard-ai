@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date
 from typing import Any
 
 from sqlalchemy import select
@@ -9,27 +9,27 @@ from app.models.finance import Goal
 
 
 async def get_goals(db: AsyncSession, user_id: uuid.UUID) -> list[dict[str, Any]]:
-    result = await db.execute(
-        select(Goal).where(Goal.user_id == user_id).order_by(Goal.created_at)
-    )
+    result = await db.execute(select(Goal).where(Goal.user_id == user_id).order_by(Goal.created_at))
     goals = result.scalars().all()
     today = date.today()
     out = []
     for g in goals:
         pct = min(100, int(float(g.current_amount) / float(g.target_amount) * 100)) if g.target_amount else 0
         days_left = (g.target_date - today).days if g.target_date else None
-        out.append({
-            "id": str(g.id),
-            "name": g.name,
-            "emoji": g.emoji,
-            "target_amount": float(g.target_amount),
-            "current_amount": float(g.current_amount),
-            "target_date": g.target_date.isoformat() if g.target_date else None,
-            "account_id": str(g.account_id) if g.account_id else None,
-            "pct": pct,
-            "days_left": days_left,
-            "created_at": g.created_at.isoformat(),
-        })
+        out.append(
+            {
+                "id": str(g.id),
+                "name": g.name,
+                "emoji": g.emoji,
+                "target_amount": float(g.target_amount),
+                "current_amount": float(g.current_amount),
+                "target_date": g.target_date.isoformat() if g.target_date else None,
+                "account_id": str(g.account_id) if g.account_id else None,
+                "pct": pct,
+                "days_left": days_left,
+                "created_at": g.created_at.isoformat(),
+            }
+        )
     return out
 
 

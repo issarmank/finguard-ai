@@ -16,5 +16,4 @@ class Settings(BaseSettings):
     PLAID_ENV: str = "sandbox"
 
 
-
 settings = Settings()

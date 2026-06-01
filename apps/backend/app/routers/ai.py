@@ -2,8 +2,8 @@ from fastapi import APIRouter
 
 from app.dependencies import CurrentUserId, DBSession
 from app.schemas.ai import (
-    InsightsScanRequest,
     InsightsResponse,
+    InsightsScanRequest,
     MonthlyReportRequest,
     MonthlyReportResponse,
     TextToSQLRequest,

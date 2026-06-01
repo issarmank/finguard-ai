@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import ai, auth, plaid, transactions, budgets, goals, net_worth
+from app.routers import ai, auth, budgets, goals, net_worth, plaid, transactions
 
 app = FastAPI(
     title="FinGuard AI",

@@ -1,7 +1,7 @@
 import json
 import re
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import sqlglot
@@ -66,6 +66,7 @@ RULES (violations will cause an error):
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _strip_fences(raw: str) -> str:
     raw = raw.strip()
     raw = re.sub(r"^```(?:sql)?\s*", "", raw, flags=re.IGNORECASE)
@@ -106,6 +107,7 @@ def _validate_sql(sql: str) -> None:
 # ---------------------------------------------------------------------------
 # Text-to-SQL
 # ---------------------------------------------------------------------------
+
 
 async def text_to_sql(
     db: AsyncSession,
@@ -148,6 +150,7 @@ async def text_to_sql(
 # AI Insights (anomaly detection + proactive tips)
 # ---------------------------------------------------------------------------
 
+
 async def get_insights(
     db: AsyncSession,
     user_id: uuid.UUID,
@@ -171,10 +174,7 @@ async def get_insights(
         .group_by(Category.name)
         .order_by(func.sum(Transaction.amount).desc())
     )
-    spending = [
-        {"category": r.name, "total": float(r.total or 0), "count": r.count}
-        for r in spending_rows.all()
-    ]
+    spending = [{"category": r.name, "total": float(r.total or 0), "count": r.count} for r in spending_rows.all()]
 
     # Recent transactions for LLM
     recent_rows = await db.execute(
@@ -202,10 +202,7 @@ async def get_insights(
             FinancialAccount.is_active.is_(True),
         )
     )
-    accounts = [
-        {"name": a.name, "type": a.type, "balance": float(a.balance)}
-        for a in accounts_rows.scalars().all()
-    ]
+    accounts = [{"name": a.name, "type": a.type, "balance": float(a.balance)} for a in accounts_rows.scalars().all()]
 
     context: dict[str, Any] = {
         "period_days": days_back,
@@ -255,6 +252,7 @@ async def get_insights(
 # Monthly Report
 # ---------------------------------------------------------------------------
 
+
 async def generate_monthly_report(
     db: AsyncSession,
     user_id: uuid.UUID,
@@ -296,6 +294,7 @@ async def generate_monthly_report(
 
     # Net worth snapshot for month
     from app.models.finance import NetWorthSnapshot
+
     nw_rows = await db.execute(
         select(NetWorthSnapshot)
         .where(
@@ -310,6 +309,7 @@ async def generate_monthly_report(
 
     # Goals progress
     from app.models.finance import Goal
+
     goals_rows = await db.execute(select(Goal).where(Goal.user_id == user_id))
     goals = [
         {
@@ -362,5 +362,5 @@ async def generate_monthly_report(
         month=month_start,
         report_markdown=report_md,
         summary=summary,
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
     )

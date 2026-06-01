@@ -4,8 +4,8 @@ from datetime import date
 from fastapi import APIRouter
 
 from app.dependencies import CurrentUserId, DBSession
-from app.schemas.finance import AccountOut, CategoryOut, TransactionOut, TransactionPatch
 from app.schemas.common import PaginatedResponse
+from app.schemas.finance import AccountOut, CategoryOut, TransactionOut, TransactionPatch
 from app.services import transaction_service
 
 router = APIRouter()
@@ -23,9 +23,14 @@ async def list_transactions(
     category_id: uuid.UUID | None = None,
 ) -> PaginatedResponse:
     return await transaction_service.get_transactions(
-        db, user_id, page=page, size=size,
-        date_from=date_from, date_to=date_to,
-        account_id=account_id, category_id=category_id,
+        db,
+        user_id,
+        page=page,
+        size=size,
+        date_from=date_from,
+        date_to=date_to,
+        account_id=account_id,
+        category_id=category_id,
     )
 
 
@@ -52,6 +57,7 @@ async def update_transaction(
     tx = await transaction_service.update_transaction(db, user_id, tx_id, body.category_id, body.notes)
     if not tx:
         from fastapi import HTTPException, status
+
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
     return TransactionOut.model_validate(tx)
 

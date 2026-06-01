@@ -1,6 +1,5 @@
-from sqlalchemy import select
-
 from fastapi import APIRouter, HTTPException, status
+from sqlalchemy import select
 
 from app.dependencies import CurrentUserId, DBSession
 from app.models.finance import PlaidItem
@@ -39,6 +38,7 @@ async def sync_transactions(
     db: DBSession,
 ) -> dict:
     import uuid
+
     try:
         iid = uuid.UUID(item_id)
     except ValueError:
@@ -54,6 +54,7 @@ async def sync_balances(
     db: DBSession,
 ) -> dict:
     import uuid
+
     try:
         iid = uuid.UUID(item_id)
     except ValueError:

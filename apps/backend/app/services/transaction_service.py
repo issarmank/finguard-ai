@@ -39,6 +39,7 @@ async def get_transactions(
     items = result.scalars().all()
 
     import math
+
     return PaginatedResponse(
         items=[TransactionOut.model_validate(t) for t in items],
         total=total,
@@ -96,9 +97,7 @@ async def update_transaction(
     category_id: uuid.UUID | None,
     notes: str | None,
 ) -> Transaction | None:
-    tx = await db.scalar(
-        select(Transaction).where(Transaction.id == tx_id, Transaction.user_id == user_id)
-    )
+    tx = await db.scalar(select(Transaction).where(Transaction.id == tx_id, Transaction.user_id == user_id))
     if not tx:
         return None
     if category_id is not None:
@@ -122,8 +121,8 @@ async def get_accounts(db: AsyncSession, user_id: uuid.UUID) -> list[FinancialAc
 
 async def get_categories(db: AsyncSession, user_id: uuid.UUID) -> list[Category]:
     result = await db.execute(
-        select(Category).where(
-            (Category.user_id == user_id) | (Category.user_id.is_(None))
-        ).order_by(Category.type, Category.name)
+        select(Category)
+        .where((Category.user_id == user_id) | (Category.user_id.is_(None)))
+        .order_by(Category.type, Category.name)
     )
     return list(result.scalars().all())

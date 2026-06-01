@@ -1,21 +1,21 @@
 import asyncio
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import plaid
 from plaid.api import plaid_api
-from plaid.model.link_token_create_request import LinkTokenCreateRequest
-from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
-from plaid.model.item_public_token_exchange_request import ItemPublicTokenExchangeRequest
-from plaid.model.transactions_sync_request import TransactionsSyncRequest
 from plaid.model.accounts_balance_get_request import AccountsBalanceGetRequest
 from plaid.model.country_code import CountryCode
+from plaid.model.item_public_token_exchange_request import ItemPublicTokenExchangeRequest
+from plaid.model.link_token_create_request import LinkTokenCreateRequest
+from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
 from plaid.model.products import Products
+from plaid.model.transactions_sync_request import TransactionsSyncRequest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models.finance import FinancialAccount, PlaidItem, Transaction, Category
+from app.models.finance import Category, FinancialAccount, PlaidItem, Transaction
 
 # Map Plaid's personal_finance_category.primary → our category names
 _PLAID_CATEGORY_MAP: dict[str, str] = {
@@ -120,7 +120,7 @@ async def _sync_accounts(db: AsyncSession, user_id: uuid.UUID, item: PlaidItem) 
         balance = float(acct["balances"].get("current") or 0)
         if existing:
             existing.balance = balance  # type: ignore[assignment]
-            existing.last_synced = datetime.now(timezone.utc)
+            existing.last_synced = datetime.now(UTC)
         else:
             fa = FinancialAccount(
                 user_id=user_id,
@@ -130,7 +130,7 @@ async def _sync_accounts(db: AsyncSession, user_id: uuid.UUID, item: PlaidItem) 
                 type=_map_account_type(acct["type"]),
                 subtype=str(acct.get("subtype") or ""),
                 balance=balance,
-                last_synced=datetime.now(timezone.utc),
+                last_synced=datetime.now(UTC),
             )
             db.add(fa)
 
@@ -169,9 +169,7 @@ def _resolve_category(
 
 
 async def sync_transactions(db: AsyncSession, user_id: uuid.UUID, item_id: uuid.UUID) -> int:
-    item = await db.scalar(
-        select(PlaidItem).where(PlaidItem.id == item_id, PlaidItem.user_id == user_id)
-    )
+    item = await db.scalar(select(PlaidItem).where(PlaidItem.id == item_id, PlaidItem.user_id == user_id))
     if not item:
         return 0
 
@@ -195,26 +193,18 @@ async def sync_transactions(db: AsyncSession, user_id: uuid.UUID, item_id: uuid.
         has_more = response["has_more"]
 
     # Load all system categories into a name→id map
-    cat_rows = await db.execute(
-        select(Category).where(Category.user_id.is_(None))
-    )
+    cat_rows = await db.execute(select(Category).where(Category.user_id.is_(None)))
     cat_map: dict[str, uuid.UUID] = {c.name: c.id for c in cat_rows.scalars().all()}
     other_cat_id = cat_map.get("Other")
 
     # Bulk-load existing account IDs to avoid N+1
     account_ids_raw = list({tx["account_id"] for tx in all_added})
-    acct_rows = await db.execute(
-        select(FinancialAccount).where(FinancialAccount.plaid_account_id.in_(account_ids_raw))
-    )
+    acct_rows = await db.execute(select(FinancialAccount).where(FinancialAccount.plaid_account_id.in_(account_ids_raw)))
     acct_map = {a.plaid_account_id: a for a in acct_rows.scalars().all()}
 
     # Bulk-load existing transactions so we can update "Other" categories
     plaid_tx_ids = [tx["transaction_id"] for tx in all_added]
-    existing_rows = await db.execute(
-        select(Transaction).where(
-            Transaction.plaid_transaction_id.in_(plaid_tx_ids)
-        )
-    )
+    existing_rows = await db.execute(select(Transaction).where(Transaction.plaid_transaction_id.in_(plaid_tx_ids)))
     existing_map: dict[str, Transaction] = {
         t.plaid_transaction_id: t  # type: ignore[index]
         for t in existing_rows.scalars().all()
@@ -255,9 +245,7 @@ async def sync_transactions(db: AsyncSession, user_id: uuid.UUID, item_id: uuid.
 
 
 async def sync_balances(db: AsyncSession, user_id: uuid.UUID, item_id: uuid.UUID) -> None:
-    item = await db.scalar(
-        select(PlaidItem).where(PlaidItem.id == item_id, PlaidItem.user_id == user_id)
-    )
+    item = await db.scalar(select(PlaidItem).where(PlaidItem.id == item_id, PlaidItem.user_id == user_id))
     if not item:
         return
     await _sync_accounts(db, user_id, item)
