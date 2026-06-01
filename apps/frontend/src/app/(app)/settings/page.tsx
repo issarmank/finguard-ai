@@ -137,7 +137,7 @@ export default function SettingsPage() {
         <SectionHeader icon={<IconSettings size={14} stroke="var(--muted)" />} label="Profile" />
         <div className="card" style={{ padding: "20px 22px" }}>
           {user ? (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
+            <div className="grid-form-two" style={{ gap: 16 }}>
               <Field label="Email" value={user.email} />
               <Field label="Account ID" value={user.id.slice(0, 8) + "…"} mono />
             </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { Sidebar } from "@/components/shared/sidebar";
@@ -9,12 +9,18 @@ import { TopNav } from "@/components/shared/top-nav";
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user } = useAuth();
   const router = useRouter();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
       router.replace("/login");
     }
   }, [isAuthenticated, router]);
+
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, []);
 
   if (!isAuthenticated) {
     return (
@@ -33,11 +39,23 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         userName={displayName}
         userInitials={initials}
         userRole="user"
+        onMenuToggle={() => setSidebarOpen((o) => !o)}
       />
-      <div style={{ display: "grid", gridTemplateColumns: "232px 1fr" }}>
-        <Sidebar />
-        <main style={{ padding: "24px 28px 64px", minHeight: "calc(100vh - 56px)" }}>
-          {children}
+      <div className="app-layout">
+        <Sidebar mobileOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <main style={{ padding: "24px 20px 0", minHeight: "calc(100vh - 56px)", display: "flex", flexDirection: "column" }}>
+          <div style={{ flex: 1 }}>{children}</div>
+          <footer style={{
+            marginTop: 48,
+            padding: "16px 0",
+            borderTop: "1px solid var(--border)",
+            textAlign: "center",
+            fontSize: 12,
+            color: "var(--muted)",
+            letterSpacing: "0.02em",
+          }}>
+            FinGuard AI · 2026
+          </footer>
         </main>
       </div>
     </div>
