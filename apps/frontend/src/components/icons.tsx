@@ -35,6 +35,7 @@ export const IconArrowDown = (p: IconProps) => <Icon {...p}><path d="M12 5v14M19
 export const IconArrowRight = (p: IconProps) => <Icon {...p}><path d="M5 12h14M13 5l7 7-7 7"/></Icon>;
 export const IconCheck = (p: IconProps) => <Icon {...p}><path d="m5 12 5 5L20 7"/></Icon>;
 export const IconAlert = (p: IconProps) => <Icon {...p}><path d="M12 2 2 21h20z"/><path d="M12 9v5M12 17.5v.1"/></Icon>;
+export const IconMenu = (p: IconProps) => <Icon {...p}><path d="M3 12h18M3 6h18M3 18h18"/></Icon>;
 export const IconClock = (p: IconProps) => <Icon {...p}><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></Icon>;
 export const IconRefresh = (p: IconProps) => <Icon {...p}><path d="M3 12a9 9 0 0 1 15.5-6.3L21 8"/><path d="M21 3v5h-5M21 12a9 9 0 0 1-15.5 6.3L3 16"/><path d="M3 21v-5h5"/></Icon>;
 export const IconCalendar = (p: IconProps) => <Icon {...p}><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></Icon>;

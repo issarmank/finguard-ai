@@ -27,14 +27,14 @@ const AuthContext = createContext<AuthState>({
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = useState<string | null>(null);
-  const [user, setUser] = useState<UserInfo | null>(null);
+function readStoredToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("fg_token");
+}
 
-  useEffect(() => {
-    const stored = localStorage.getItem("fg_token");
-    if (stored) setToken(stored);
-  }, []);
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [token, setToken] = useState<string | null>(readStoredToken);
+  const [user, setUser] = useState<UserInfo | null>(null);
 
   useEffect(() => {
     if (!token) { setUser(null); return; }

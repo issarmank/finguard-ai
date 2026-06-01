@@ -81,7 +81,7 @@ export default function TransactionsPage() {
       )}
 
       {/* Table */}
-      <div className="card" style={{ overflow: "hidden" }}>
+      <div className="card" style={{ overflowX: "auto" }}>
         {loading ? (
           <div style={{ padding: 40, display: "grid", placeItems: "center" }}>
             <span className="spinner" style={{ width: 22, height: 22 }} />
@@ -91,14 +91,14 @@ export default function TransactionsPage() {
             No transactions found.
           </div>
         ) : (
-          <table className="data" style={{ width: "100%" }}>
+          <table className="data" style={{ width: "100%", minWidth: 680 }}>
             <thead>
               <tr>
-                <th style={{ width: 120 }}>Date</th>
+                <th style={{ width: 110 }}>Date</th>
                 <th>Description</th>
-                <th>Account</th>
-                <th>Category</th>
-                <th style={{ textAlign: "right" }}>Amount</th>
+                <th style={{ width: 160 }}>Account</th>
+                <th style={{ width: 160 }}>Category</th>
+                <th style={{ textAlign: "right", width: 120 }}>Amount</th>
               </tr>
             </thead>
             <tbody>
@@ -108,15 +108,16 @@ export default function TransactionsPage() {
                 return (
                   <tr key={tx.id} style={{ opacity: tx.pending ? 0.6 : 1 }}>
                     <td className="mono" style={{ fontSize: 12, color: "var(--muted)", whiteSpace: "nowrap" }}>{fmtDate(tx.date)}</td>
-                    <td>
-                      <div style={{ color: "var(--body)", fontWeight: 500, fontSize: 13 }}>{tx.merchant ?? tx.description}</div>
-                      {tx.notes && <div style={{ color: "var(--muted)", fontSize: 11.5 }}>{tx.notes}</div>}
+                    <td style={{ maxWidth: 280 }}>
+                      <div style={{ color: "var(--body)", fontWeight: 500, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tx.merchant ?? tx.description}</div>
+                      {tx.notes && <div style={{ color: "var(--muted)", fontSize: 11.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tx.notes}</div>}
                     </td>
-                    <td style={{ color: "var(--muted)", fontSize: 12.5 }}>{acct?.name ?? "—"}</td>
-                    <td>
+                    <td style={{ color: "var(--muted)", fontSize: 12.5, whiteSpace: "nowrap" }}>{acct?.name ?? "—"}</td>
+                    <td style={{ whiteSpace: "nowrap" }}>
                       {cat ? (
                         <span style={{
-                          padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 500,
+                          display: "inline-flex", alignItems: "center", gap: 4,
+                          padding: "3px 10px", borderRadius: 999, fontSize: 11.5, fontWeight: 500,
                           background: `${cat.color ?? "#6ee7b7"}22`,
                           color: cat.color ?? "var(--primary)",
                           border: `1px solid ${cat.color ?? "#6ee7b7"}44`,
@@ -124,10 +125,10 @@ export default function TransactionsPage() {
                           {cat.icon} {cat.name}
                         </span>
                       ) : (
-                        <span style={{ color: "var(--muted)", fontSize: 12 }}>Uncategorized</span>
+                        <span style={{ color: "var(--muted)", fontSize: 12 }}>—</span>
                       )}
                     </td>
-                    <td className="mono" style={{ textAlign: "right", fontSize: 13, fontWeight: 500, color: tx.amount < 0 ? "var(--primary)" : "var(--body)" }}>
+                    <td className="mono" style={{ textAlign: "right", fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", color: tx.amount < 0 ? "var(--primary)" : "var(--body)" }}>
                       {tx.amount < 0 ? "+" : ""}{fmtMoney(Math.abs(tx.amount))}
                       {tx.pending && <span style={{ marginLeft: 4, fontSize: 10, color: "var(--muted)" }}>pending</span>}
                     </td>

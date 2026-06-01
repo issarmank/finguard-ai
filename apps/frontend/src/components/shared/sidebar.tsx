@@ -24,31 +24,72 @@ const NAV_ITEMS = [
   { id: "settings",     label: "Settings",     icon: IconSettings,   href: "/settings" },
 ];
 
-export function Sidebar() {
-  const pathname = usePathname();
+const navInnerStyle = {
+  width: 232,
+  borderRight: "1px solid var(--border)",
+  background: "var(--bg)",
+  padding: "14px 12px",
+  display: "flex",
+  flexDirection: "column" as const,
+  gap: 2,
+  overflowY: "auto" as const,
+};
 
+interface SidebarProps {
+  mobileOpen?: boolean;
+  onClose?: () => void;
+}
+
+function NavLinks({ onClose }: { onClose?: () => void }) {
+  const pathname = usePathname();
   return (
-    <aside style={{
-      width: 232, borderRight: "1px solid var(--border)",
-      background: "var(--bg)", padding: "14px 12px",
-      display: "flex", flexDirection: "column", gap: 2,
-      position: "sticky", top: 56, height: "calc(100vh - 56px)", overflowY: "auto",
-    }}>
+    <>
       <div style={{ padding: "4px 12px 10px", fontSize: 10.5, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 500 }}>
         Personal Finance
       </div>
-
       {NAV_ITEMS.map((item) => {
         const Ic = item.icon;
         const active = pathname.startsWith(item.href);
         return (
-          <Link key={item.id} href={item.href} className={`side-link ${active ? "active" : ""}`} style={{ textDecoration: "none" }}>
+          <Link
+            key={item.id}
+            href={item.href}
+            className={`side-link ${active ? "active" : ""}`}
+            style={{ textDecoration: "none" }}
+            onClick={onClose}
+          >
             <Ic size={16} />
             <span style={{ flex: 1 }}>{item.label}</span>
           </Link>
         );
       })}
+    </>
+  );
+}
 
-    </aside>
+export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
+  return (
+    <>
+      {/* Desktop: sticky sidebar in grid */}
+      <aside
+        className="sidebar-desktop"
+        style={{ ...navInnerStyle, position: "sticky", top: 56, height: "calc(100vh - 56px)" }}
+      >
+        <NavLinks />
+      </aside>
+
+      {/* Mobile: fixed overlay sidebar */}
+      {mobileOpen && (
+        <>
+          <div className="sidebar-overlay-bg" onClick={onClose} />
+          <div
+            className="sidebar-mobile-open"
+            style={{ ...navInnerStyle, position: "fixed", top: 56, left: 0, bottom: 0, height: "auto", boxShadow: "4px 0 24px #00000060" }}
+          >
+            <NavLinks onClose={onClose} />
+          </div>
+        </>
+      )}
+    </>
   );
 }

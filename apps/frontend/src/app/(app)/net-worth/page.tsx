@@ -66,7 +66,7 @@ export default function NetWorthPage() {
       />
 
       {/* Net Worth Summary */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+      <div className="grid-three-col">
         {[
           { label: "Net Worth", value: nw?.net_worth ?? 0, color: "var(--primary)" },
           { label: "Total Assets", value: nw?.assets ?? 0, color: "#6ee7b7" },
@@ -135,7 +135,7 @@ export default function NetWorthPage() {
       </div>
 
       {/* Account Breakdown */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+      <div className="grid-two-col">
         {[{ title: "Assets", items: assets, total: nw?.assets ?? 0 }, { title: "Liabilities", items: liabilities, total: nw?.liabilities ?? 0 }].map(({ title, items, total }) => (
           <div key={title} className="card" style={{ overflow: "hidden" }}>
             <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between" }}>

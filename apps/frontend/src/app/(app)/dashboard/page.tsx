@@ -101,7 +101,7 @@ export default function DashboardPage() {
       />
 
       {/* Stat cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
+      <div className="grid-stat-cards">
         <StatCard
           label="Net Worth"
           value={loading ? "—" : fmtMoney(nw?.net_worth ?? 0)}
@@ -126,7 +126,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Chart + Recent Transactions */}
-      <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", gap: 14 }}>
+      <div className="grid-chart-row">
         <div className="card" style={{ padding: 18 }}>
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
             <div>
@@ -206,7 +206,7 @@ export default function DashboardPage() {
             <div style={{ color: "var(--heading)", fontSize: 14, fontWeight: 600 }}>Budget Progress</div>
             <Link href="/budgets" style={{ fontSize: 12.5, color: "var(--primary)", textDecoration: "none" }}>Manage budgets →</Link>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
+          <div className="grid-two-col">
             {topBudgets.map((b) => (
               <div key={b.budget_id}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5, fontSize: 12.5 }}>
