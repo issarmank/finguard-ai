@@ -101,7 +101,7 @@ export default function NetWorthPage() {
         <div style={{ width: "100%", height: 260 }}>
           {history.length === 0 ? (
             <div style={{ height: "100%", display: "grid", placeItems: "center", color: "var(--muted)", fontSize: 13 }}>
-              No snapshot data yet. Click "📸 Snapshot" to record today's net worth.
+              No snapshot data yet. Click &ldquo;📸 Snapshot&rdquo; to record today&apos;s net worth.
             </div>
           ) : (
             <ResponsiveContainer>
