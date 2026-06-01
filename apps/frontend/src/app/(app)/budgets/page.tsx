@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { PageHeader } from "@/components/shared/page-header";
 import { IconChevronLeft, IconChevronRight } from "@/components/icons";
@@ -56,18 +56,18 @@ export default function BudgetsPage() {
   const monthStr = monthDate.toISOString().slice(0, 10);
   const monthLabel = monthDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
-  function load() {
+  const load = useCallback(() => {
     setLoading(true);
     api.get<BudgetOut[]>(`/budgets/?month=${monthStr}`)
       .then(setBudgets)
       .finally(() => setLoading(false));
-  }
+  }, [monthStr]);
 
   useEffect(() => {
     api.get<CategoryOut[]>("/transactions/categories").then(setCategories);
   }, []);
 
-  useEffect(() => { load(); }, [monthOffset]);
+  useEffect(() => { load(); }, [load]);
 
   const existingCatIds = new Set(budgets.map((b) => b.category_id));
   const availableCats = categories.filter((c) => c.type === "expense" && !existingCatIds.has(c.id));
@@ -101,7 +101,7 @@ export default function BudgetsPage() {
 
   async function deleteBudget(b: BudgetOut) {
     try {
-      await api.delete(`/budgets/${b.budget_id}`);
+      await api.delete(`/budgets/${b.category_id}?month=${b.month}`);
       setEditing(null);
       load();
     } catch {
