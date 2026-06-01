@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
 import { api, ApiError } from "@/lib/api";
 import { PageHeader } from "@/components/shared/page-header";
 import { IconFile, IconDownload, IconRefresh } from "@/components/icons";
@@ -109,19 +110,9 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          {/* Markdown rendered as pre-wrap */}
-          <div style={{ padding: "20px 24px" }}>
-            <pre style={{
-              fontFamily: "var(--font-sans, sans-serif)",
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-word",
-              color: "var(--body)",
-              fontSize: 13.5,
-              lineHeight: 1.7,
-              margin: 0,
-            }}>
-              {report.report_markdown}
-            </pre>
+          {/* Markdown rendered */}
+          <div style={{ padding: "20px 24px" }} className="md-report">
+            <ReactMarkdown>{report.report_markdown}</ReactMarkdown>
           </div>
         </div>
       )}

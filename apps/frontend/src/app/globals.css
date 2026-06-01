@@ -237,3 +237,16 @@
    border-radius: var(--radius-card);
  }
  
+/* Monthly report markdown */
+.md-report { color: var(--body); font-size: 13.5px; line-height: 1.75; }
+.md-report h1, .md-report h2, .md-report h3, .md-report h4 { color: var(--heading); font-weight: 600; margin: 1.4em 0 0.5em; }
+.md-report h1 { font-size: 1.35em; }
+.md-report h2 { font-size: 1.15em; }
+.md-report h3 { font-size: 1em; color: var(--primary); }
+.md-report p { margin: 0.5em 0; }
+.md-report ul, .md-report ol { padding-left: 1.4em; margin: 0.5em 0; }
+.md-report li { margin: 0.25em 0; }
+.md-report strong { color: var(--heading); font-weight: 600; }
+.md-report em { color: var(--muted); }
+.md-report hr { border: none; border-top: 1px solid var(--border); margin: 1.2em 0; }
+.md-report code { font-family: var(--font-mono, monospace); font-size: 12px; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
