@@ -12,8 +12,8 @@
 |---|---|
 | Resource Group | `finguard-rg` |
 | Location | `eastus` |
-| ACR Name | `finguardacr` |
-| ACR Login Server | `finguardacr.azurecr.io` |
+| ACR Name | `finguardissar` |
+| ACR Login Server | `finguardissar.azurecr.io` |
 | PostgreSQL Server | `finguard-pg` |
 | PostgreSQL DB | `finguard_prod` |
 | PostgreSQL User | `finguard` |
@@ -131,8 +131,7 @@ az containerapp create \
 
 ### Container App URL
 
-<!-- Fill in after creation -->
-`https://finguard-api.<random>.azurecontainerapps.io`
+`https://finguard-api.thankfulsky-bac536ee.eastus.azurecontainerapps.io`
 
 ---
 
@@ -165,7 +164,7 @@ Add in: **Settings → Secrets and variables → Actions**
 | `AZURE_RESOURCE_GROUP` | `finguard-rg` |
 | `ACR_NAME` | `finguardacr` |
 | `ACR_LOGIN_SERVER` | `finguardacr.azurecr.io` |
-| `NEXT_PUBLIC_API_URL` | Your Azure Container Apps URL |
+| `NEXT_PUBLIC_API_URL` | `https://finguard-api.thankfulsky-bac536ee.eastus.azurecontainerapps.io` |
 
 ```bash
 # Generate AZURE_CREDENTIALS service principal
