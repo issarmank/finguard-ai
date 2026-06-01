@@ -43,8 +43,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       />
       <div className="app-layout">
         <Sidebar mobileOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-        <main style={{ padding: "24px 20px 64px", minHeight: "calc(100vh - 56px)" }}>
-          {children}
+        <main style={{ padding: "24px 20px 0", minHeight: "calc(100vh - 56px)", display: "flex", flexDirection: "column" }}>
+          <div style={{ flex: 1 }}>{children}</div>
+          <footer style={{
+            marginTop: 48,
+            padding: "16px 0",
+            borderTop: "1px solid var(--border)",
+            textAlign: "center",
+            fontSize: 12,
+            color: "var(--muted)",
+            letterSpacing: "0.02em",
+          }}>
+            FinGuard AI · 2026
+          </footer>
         </main>
       </div>
     </div>
