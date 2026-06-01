@@ -5,27 +5,21 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import {
-  IconBell,
   IconChevronDown,
   IconSearch,
   IconShield,
-  IconSettings,
 } from "@/components/icons";
 
 interface TopNavProps {
-  tenantName: string;
   userName: string;
   userInitials: string;
   userRole: string;
-  fraudCount?: number;
 }
 
 export function TopNav({
-  tenantName,
   userName,
   userInitials,
   userRole,
-  fraudCount = 0,
 }: TopNavProps) {
   const { user, logout } = useAuth();
   const router = useRouter();
@@ -119,7 +113,7 @@ export function TopNav({
       </Link>
 
       {/* Center: search */}
-      <div ref={wrapRef} style={{ display: "flex", alignItems: "center", gap: 16, maxWidth: 720, position: "relative" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 16, maxWidth: 720, position: "relative" }}>
         {/* SEARCH */}
         <div style={{ position: "relative", flex: 1, maxWidth: 420 }}>
           <IconSearch
@@ -151,41 +145,10 @@ export function TopNav({
         </div>
       </div>
 
-      {/* Right: notifications + user dropdown */}
+      {/* Right: user dropdown */}
       <div style={{ display: "flex", alignItems: "center", gap: 14, position: "relative" }}>
-        <button
-          className="btn btn-ghost btn-sm"
-          style={{ position: "relative", width: 32, padding: 0 }}
-          aria-label="Notifications"
-          onClick={() => router.push("/fraud-alerts")}
-        >
-          <IconBell size={15} />
-          {fraudCount > 0 && (
-            <span
-              style={{
-                position: "absolute",
-                top: -3,
-                right: -3,
-                minWidth: 16,
-                height: 16,
-                padding: "0 4px",
-                borderRadius: 999,
-                background: "var(--danger)",
-                color: "#1a0606",
-                fontSize: 10,
-                fontWeight: 700,
-                display: "grid",
-                placeItems: "center",
-                border: "2px solid var(--bg)",
-              }}
-            >
-              {fraudCount}
-            </span>
-          )}
-        </button>
-
         {/* User dropdown */}
-        <div style={{ position: "relative" }}>
+        <div ref={wrapRef} style={{ position: "relative" }}>
           <button
             onClick={() => setOpenMenu(openMenu === "user" ? null : "user")}
             style={{

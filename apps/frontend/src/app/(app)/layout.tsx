@@ -30,11 +30,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div>
       <TopNav
-        tenantName="FinGuard AI"
         userName={displayName}
         userInitials={initials}
         userRole="user"
-        fraudCount={0}
       />
       <div style={{ display: "grid", gridTemplateColumns: "232px 1fr" }}>
         <Sidebar />
