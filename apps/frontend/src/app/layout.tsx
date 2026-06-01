@@ -17,8 +17,12 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "FinGuard AI",
-  description:
-    "Multi-Tenant Financial Ledger & AI-Driven Compliance/Audit Engine",
+  description: "Personal finance dashboard — track spending, budgets, and net worth with AI.",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({
