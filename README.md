@@ -1,5 +1,7 @@
 # FinGuard AI
 
+<img width="2936" height="1648" alt="image" src="https://github.com/user-attachments/assets/c0a3c9af-5b10-4638-8aff-0e20b0d071e6" />
+
 A personal finance dashboard powered by Plaid and AI. Track spending, set budgets, manage goals, monitor net worth, and get AI-generated insights — all in one place.
 
 **Live:** [finguard-issarmanks-projects.vercel.app](https://finguard-issarmanks-projects.vercel.app)
