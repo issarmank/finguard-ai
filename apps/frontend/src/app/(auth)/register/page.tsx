@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { api, ApiError } from "@/lib/api";
 import { IconShield } from "@/components/icons";
-import type { TokenResponse } from "@/types/api";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -22,8 +21,8 @@ export default function RegisterPage() {
     setError(null);
     setLoading(true);
     try {
-      const res = await api.post<TokenResponse>("/auth/register", { name, email, password });
-      login(res.access_token);
+      await api.post("/auth/register", { name, email, password });
+      await login();
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Registration failed");

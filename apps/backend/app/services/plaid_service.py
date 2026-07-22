@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.crypto import decrypt_token, encrypt_token
 from app.models.finance import Category, FinancialAccount, PlaidItem, Transaction
 
 # Map Plaid's personal_finance_category.primary → our category names
@@ -95,7 +96,7 @@ async def exchange_public_token(
     item = PlaidItem(
         user_id=user_id,
         item_id=exchange_response["item_id"],
-        access_token=exchange_response["access_token"],
+        access_token=encrypt_token(exchange_response["access_token"]),
         institution=institution,
     )
     db.add(item)
@@ -110,7 +111,7 @@ async def exchange_public_token(
 
 async def _sync_accounts(db: AsyncSession, user_id: uuid.UUID, item: PlaidItem) -> None:
     client = _get_plaid_client()
-    balance_request = AccountsBalanceGetRequest(access_token=item.access_token)
+    balance_request = AccountsBalanceGetRequest(access_token=decrypt_token(item.access_token))
     balance_response = await asyncio.to_thread(client.accounts_balance_get, balance_request)
 
     for acct in balance_response["accounts"]:
@@ -184,7 +185,7 @@ async def sync_transactions(db: AsyncSession, user_id: uuid.UUID, item_id: uuid.
     next_cursor = cursor
     while has_more:
         sync_request = TransactionsSyncRequest(
-            access_token=item.access_token,
+            access_token=decrypt_token(item.access_token),
             cursor=next_cursor,
         )
         response = await asyncio.to_thread(client.transactions_sync, sync_request)

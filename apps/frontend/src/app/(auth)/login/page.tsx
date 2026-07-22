@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { api, ApiError } from "@/lib/api";
 import { IconShield } from "@/components/icons";
-import type { TokenResponse } from "@/types/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,8 +20,8 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      const res = await api.post<TokenResponse>("/auth/login", { email, password });
-      login(res.access_token);
+      await api.post("/auth/login", { email, password });
+      await login();
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Login failed");

@@ -7,27 +7,31 @@ import { Sidebar } from "@/components/shared/sidebar";
 import { TopNav } from "@/components/shared/top-nav";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isLoading && !isAuthenticated) {
       router.replace("/login");
     }
-  }, [isAuthenticated, router]);
+  }, [isLoading, isAuthenticated, router]);
 
   // Close mobile sidebar on route change
   useEffect(() => {
     setSidebarOpen(false);
   }, []);
 
-  if (!isAuthenticated) {
+  if (isLoading) {
     return (
       <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "var(--bg)" }}>
         <span className="spinner" style={{ width: 28, height: 28 }} />
       </div>
     );
+  }
+
+  if (!isAuthenticated) {
+    return null;
   }
 
   const initials = user?.email ? user.email.slice(0, 2).toUpperCase() : "?";

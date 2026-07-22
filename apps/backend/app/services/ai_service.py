@@ -74,7 +74,25 @@ def _strip_fences(raw: str) -> str:
     return raw.strip().rstrip(";")
 
 
-def _validate_sql(sql: str) -> None:
+# Tables that hold user-owned data and MUST be constrained to the caller's
+# user_id. Any table referenced here must carry a `user_id = '<uuid>'` predicate
+# in the generated SQL. `categories` is exempt because system categories have a
+# NULL user_id and are intentionally shared.
+_USER_SCOPED_TABLES = frozenset(
+    {
+        "financial_accounts",
+        "transactions",
+        "budgets",
+        "goals",
+        "net_worth_snapshots",
+    }
+)
+
+# Tables the model is never allowed to touch (auth/PII), regardless of scoping.
+_FORBIDDEN_TABLES = frozenset({"users", "plaid_items", "audit_logs"})
+
+
+def _validate_sql(sql: str, user_id: uuid.UUID) -> None:
     try:
         statements = sqlglot.parse(sql, dialect="postgres")
     except sqlglot.errors.ParseError as e:
@@ -89,18 +107,53 @@ def _validate_sql(sql: str) -> None:
             detail="Expected exactly one SQL statement",
         )
 
-    if not isinstance(statements[0], sqlglot.exp.Select):
+    ast = statements[0]
+
+    if not isinstance(ast, sqlglot.exp.Select):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Only SELECT statements are allowed",
         )
 
     upper = sql.upper()
-    for kw in ("INSERT", "UPDATE", "DELETE", "DROP", "TRUNCATE", "ALTER", "CREATE", "GRANT", "REVOKE"):
+    for kw in ("INSERT", "UPDATE", "DELETE", "DROP", "TRUNCATE", "ALTER", "CREATE", "GRANT", "REVOKE", "MERGE", "COPY"):
         if re.search(rf"\b{kw}\b", upper):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"Forbidden SQL keyword detected: {kw}",
+            )
+
+    # --- Tenant-isolation enforcement -------------------------------------
+    # Collect every real table referenced anywhere in the statement (including
+    # subqueries, CTEs and joins) using the parsed AST rather than string
+    # matching, which the model could otherwise evade.
+    referenced_tables = {t.name.lower() for t in ast.find_all(sqlglot.exp.Table) if t.name}
+
+    forbidden_hit = referenced_tables & _FORBIDDEN_TABLES
+    if forbidden_hit:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Query references restricted table(s): {', '.join(sorted(forbidden_hit))}",
+        )
+
+    # Every user-scoped table in the query must be filtered by the caller's
+    # own user_id, expressed as a literal in the SQL. We require the exact
+    # `user_id = '<uuid>'` predicate to be present for each such table.
+    scoped_tables_used = referenced_tables & _USER_SCOPED_TABLES
+    if scoped_tables_used:
+        expected = str(user_id)
+        # Gather every literal that appears in an equality against a *user_id*
+        # column anywhere in the AST.
+        user_id_literals: set[str] = set()
+        for eq in ast.find_all(sqlglot.exp.EQ):
+            col = eq.find(sqlglot.exp.Column)
+            lit = eq.find(sqlglot.exp.Literal)
+            if col is not None and col.name.lower() == "user_id" and lit is not None:
+                user_id_literals.add(lit.this)
+        if expected not in user_id_literals:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Query must filter by the current user's user_id",
             )
 
 
@@ -129,14 +182,24 @@ async def text_to_sql(
     )
 
     sql = _strip_fences(raw)
-    _validate_sql(sql)
+    _validate_sql(sql, user_id)
 
     if "LIMIT" not in sql.upper():
         sql = f"{sql} LIMIT 500"
 
+    # Execute inside a nested transaction that is ALWAYS rolled back, and force
+    # the Postgres session to be read-only for the duration. This is defense in
+    # depth: even if a data-modifying statement slipped past validation, it can
+    # neither commit nor mutate rows.
     try:
-        result = await db.execute(text(sql))
-        rows = [dict(row._mapping) for row in result.fetchall()]
+        async with db.begin_nested() as nested:
+            await db.execute(text("SET LOCAL transaction_read_only = on"))
+            await db.execute(text("SET LOCAL statement_timeout = '10s'"))
+            result = await db.execute(text(sql))
+            rows = [dict(row._mapping) for row in result.fetchall()]
+            await nested.rollback()
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

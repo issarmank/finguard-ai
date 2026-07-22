@@ -5,60 +5,52 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 export interface UserInfo {
   id: string;
   email: string;
-  role: string;
-  tenant_id: string;
+  created_at: string;
 }
 
 interface AuthState {
-  token: string | null;
   user: UserInfo | null;
-  login: (token: string) => void;
-  logout: () => void;
   isAuthenticated: boolean;
+  isLoading: boolean;
+  login: () => Promise<void>;
+  logout: () => Promise<void>;
 }
-
-const AuthContext = createContext<AuthState>({
-  token: null,
-  user: null,
-  login: () => {},
-  logout: () => {},
-  isAuthenticated: false,
-});
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-function readStoredToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("fg_token");
-}
+const AuthContext = createContext<AuthState>({
+  user: null,
+  isAuthenticated: false,
+  isLoading: true,
+  login: async () => {},
+  logout: async () => {},
+});
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = useState<string | null>(readStoredToken);
   const [user, setUser] = useState<UserInfo | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
+  // On mount, restore session from httpOnly cookie via /auth/me
   useEffect(() => {
-    if (!token) { setUser(null); return; }
-    fetch(`${API_URL}/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    fetch(`${API_URL}/auth/me`, { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => { if (data) setUser(data); })
-      .catch(() => {});
-  }, [token]);
-
-  const login = useCallback((t: string) => {
-    localStorage.setItem("fg_token", t);
-    setToken(t);
+      .then((data) => { setUser(data); setIsLoading(false); })
+      .catch(() => setIsLoading(false));
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem("fg_token");
-    setToken(null);
+  // Called after a successful login POST — backend already set the cookie
+  const login = useCallback(async () => {
+    const data = await fetch(`${API_URL}/auth/me`, { credentials: "include" }).then((r) => r.json());
+    setUser(data);
+  }, []);
+
+  const logout = useCallback(async () => {
+    await fetch(`${API_URL}/auth/logout`, { method: "POST", credentials: "include" });
     setUser(null);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ token, user, login, logout, isAuthenticated: !!token }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
@@ -66,9 +58,4 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   return useContext(AuthContext);
-}
-
-export function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("fg_token");
 }

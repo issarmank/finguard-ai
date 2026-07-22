@@ -31,7 +31,7 @@
 az group create --name finguard-rg --location eastus
 
 # 2. Create container registry
-az acr create --resource-group finguard-rg --name finguardacr --sku Basic --admin-enabled true
+az acr create --resource-group finguard-rg --name finguardissar --sku Basic --admin-enabled true
 
 # 3. Create PostgreSQL Flexible Server
 az postgres flexible-server create \
@@ -109,19 +109,19 @@ az containerapp update \
 
 ```bash
 # Login to ACR
-az acr login --name finguardacr
+az acr login --name finguardissar
 
 # Build and push image
-docker build -t finguardacr.azurecr.io/finguard-api:latest ./apps/backend
-docker push finguardacr.azurecr.io/finguard-api:latest
+docker build -t finguardissar.azurecr.io/finguard-api:latest ./apps/backend
+docker push finguardissar.azurecr.io/finguard-api:latest
 
 # Create Container App
 az containerapp create \
   --name finguard-api \
   --resource-group finguard-rg \
   --environment finguard-env \
-  --image finguardacr.azurecr.io/finguard-api:latest \
-  --registry-server finguardacr.azurecr.io \
+  --image finguardissar.azurecr.io/finguard-api:latest \
+  --registry-server finguardissar.azurecr.io \
   --registry-username <ACR_USERNAME> \
   --registry-password <ACR_PASSWORD> \
   --target-port 8000 \
@@ -162,8 +162,8 @@ Add in: **Settings → Secrets and variables → Actions**
 |---|---|
 | `AZURE_CREDENTIALS` | Output of `az ad sp create-for-rbac ...` (see below) |
 | `AZURE_RESOURCE_GROUP` | `finguard-rg` |
-| `ACR_NAME` | `finguardacr` |
-| `ACR_LOGIN_SERVER` | `finguardacr.azurecr.io` |
+| `ACR_NAME` | `finguardissar` |
+| `ACR_LOGIN_SERVER` | `finguardissar.azurecr.io` |
 | `NEXT_PUBLIC_API_URL` | `https://finguard-api.thankfulsky-bac536ee.eastus.azurecontainerapps.io` |
 
 ```bash
