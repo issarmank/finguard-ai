@@ -28,7 +28,7 @@ class Settings(BaseSettings):
             if not self.PLAID_ENCRYPTION_KEY:
                 raise RuntimeError(
                     "PLAID_ENCRYPTION_KEY must be set in production. "
-                    "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+                    'Generate one with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"'
                 )
 
 

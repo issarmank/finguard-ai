@@ -3,10 +3,11 @@ from cryptography.fernet import Fernet, InvalidToken
 
 def _get_fernet() -> Fernet:
     from app.config import settings
+
     if not settings.PLAID_ENCRYPTION_KEY:
         raise RuntimeError(
             "PLAID_ENCRYPTION_KEY is not configured. "
-            "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+            'Generate one with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"'
         )
     return Fernet(settings.PLAID_ENCRYPTION_KEY.encode())
 
