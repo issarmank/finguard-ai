@@ -4,6 +4,7 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    public code?: string,
   ) {
     super(message);
     this.name = "ApiError";
@@ -23,7 +24,12 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new ApiError(res.status, body.detail ?? "Request failed");
+    // detail is a string, or { code, message } for errors the UI can act on
+    const detail = body.detail;
+    if (detail && typeof detail === "object" && "message" in detail) {
+      throw new ApiError(res.status, detail.message, detail.code);
+    }
+    throw new ApiError(res.status, detail ?? "Request failed");
   }
 
   if (res.status === 204 || res.headers.get("content-length") === "0") {

@@ -118,6 +118,11 @@ class BudgetUpsert(BaseModel):
     amount: float
 
 
+class LinkTokenRequest(BaseModel):
+    # Set to re-authenticate an existing item (Plaid Link update mode)
+    item_id: uuid.UUID | None = None
+
+
 class ExchangeRequest(BaseModel):
     public_token: str
     institution: str

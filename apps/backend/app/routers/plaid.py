@@ -3,7 +3,7 @@ from sqlalchemy import select
 
 from app.dependencies import CurrentUserId, DBSession
 from app.models.finance import PlaidItem
-from app.schemas.finance import ExchangeRequest, PlaidItemOut
+from app.schemas.finance import ExchangeRequest, LinkTokenRequest, PlaidItemOut
 from app.services import plaid_service
 
 router = APIRouter()
@@ -16,8 +16,13 @@ async def list_items(user_id: CurrentUserId, db: DBSession) -> list[PlaidItemOut
 
 
 @router.post("/link-token")
-async def create_link_token(user_id: CurrentUserId) -> dict:
-    token = await plaid_service.create_link_token(user_id)
+async def create_link_token(user_id: CurrentUserId, db: DBSession, body: LinkTokenRequest | None = None) -> dict:
+    item = None
+    if body and body.item_id:
+        item = await db.scalar(select(PlaidItem).where(PlaidItem.id == body.item_id, PlaidItem.user_id == user_id))
+        if not item:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plaid item not found")
+    token = await plaid_service.create_link_token(user_id, item)
     return {"link_token": token}
 
 

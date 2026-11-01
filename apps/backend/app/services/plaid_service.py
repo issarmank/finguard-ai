@@ -1,8 +1,11 @@
 import asyncio
+import json
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
 
 import plaid
+from fastapi import HTTPException, status
 from plaid.api import plaid_api
 from plaid.model.accounts_balance_get_request import AccountsBalanceGetRequest
 from plaid.model.country_code import CountryCode
@@ -53,6 +56,31 @@ _PLAID_LEGACY_MAP: dict[str, str] = {
 }
 
 
+# Item errors that the user can fix by signing in to their bank again via Link update mode
+_REAUTH_ERROR_CODES = {"ITEM_LOGIN_REQUIRED", "PENDING_EXPIRATION", "PENDING_DISCONNECT"}
+
+
+async def _call_plaid(fn: Callable, request: object) -> dict:
+    """Run a blocking Plaid SDK call off the event loop and turn Plaid errors into HTTP errors."""
+    try:
+        return await asyncio.to_thread(fn, request)
+    except plaid.ApiException as e:
+        try:
+            body = json.loads(e.body or "{}")
+        except ValueError:
+            body = {}
+        code = body.get("error_code", "UNKNOWN")
+        if code in _REAUTH_ERROR_CODES:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"code": "ITEM_LOGIN_REQUIRED", "message": "This bank connection needs you to sign in again."},
+            )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={"code": code, "message": body.get("display_message") or f"Plaid error: {code}"},
+        )
+
+
 def _get_plaid_client() -> plaid_api.PlaidApi:
     env_map = {
         "sandbox": plaid.Environment.Sandbox,
@@ -70,16 +98,20 @@ def _get_plaid_client() -> plaid_api.PlaidApi:
     return plaid_api.PlaidApi(api_client)
 
 
-async def create_link_token(user_id: uuid.UUID) -> str:
+async def create_link_token(user_id: uuid.UUID, item: PlaidItem | None = None) -> str:
     client = _get_plaid_client()
-    request = LinkTokenCreateRequest(
-        user=LinkTokenCreateRequestUser(client_user_id=str(user_id)),
-        client_name="FinGuard AI",
-        products=[Products("transactions")],
-        country_codes=[CountryCode("US")],
-        language="en",
-    )
-    response = await asyncio.to_thread(client.link_token_create, request)
+    params: dict = {
+        "user": LinkTokenCreateRequestUser(client_user_id=str(user_id)),
+        "client_name": "FinGuard AI",
+        "country_codes": [CountryCode("US")],
+        "language": "en",
+    }
+    if item:
+        # Update mode: re-authenticate an existing Item instead of creating a new one
+        params["access_token"] = decrypt_token(item.access_token)
+    else:
+        params["products"] = [Products("transactions")]
+    response = await _call_plaid(client.link_token_create, LinkTokenCreateRequest(**params))
     return response["link_token"]
 
 
@@ -91,7 +123,7 @@ async def exchange_public_token(
 ) -> PlaidItem:
     client = _get_plaid_client()
     exchange_request = ItemPublicTokenExchangeRequest(public_token=public_token)
-    exchange_response = await asyncio.to_thread(client.item_public_token_exchange, exchange_request)
+    exchange_response = await _call_plaid(client.item_public_token_exchange, exchange_request)
 
     item = PlaidItem(
         user_id=user_id,
@@ -112,7 +144,7 @@ async def exchange_public_token(
 async def _sync_accounts(db: AsyncSession, user_id: uuid.UUID, item: PlaidItem) -> None:
     client = _get_plaid_client()
     balance_request = AccountsBalanceGetRequest(access_token=decrypt_token(item.access_token))
-    balance_response = await asyncio.to_thread(client.accounts_balance_get, balance_request)
+    balance_response = await _call_plaid(client.accounts_balance_get, balance_request)
 
     for acct in balance_response["accounts"]:
         existing = await db.scalar(
@@ -179,7 +211,7 @@ async def sync_transactions(db: AsyncSession, user_id: uuid.UUID, item_id: uuid.
     cursor = ""
     added_count = 0
 
-    # Fetch all transaction pages from Plaid (non-blocking via thread pool)
+    # Fetch all transaction pages from Plaid
     all_added: list = []
     has_more = True
     next_cursor = cursor
@@ -188,7 +220,7 @@ async def sync_transactions(db: AsyncSession, user_id: uuid.UUID, item_id: uuid.
             access_token=decrypt_token(item.access_token),
             cursor=next_cursor,
         )
-        response = await asyncio.to_thread(client.transactions_sync, sync_request)
+        response = await _call_plaid(client.transactions_sync, sync_request)
         all_added.extend(response["added"])
         next_cursor = response["next_cursor"]
         has_more = response["has_more"]

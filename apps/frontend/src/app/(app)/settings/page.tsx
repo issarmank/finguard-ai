@@ -9,22 +9,27 @@ import { PageHeader } from "@/components/shared/page-header";
 import { IconShield, IconSettings, IconLink2 } from "@/components/icons";
 import type { PlaidItemOut, AccountOut } from "@/types/api";
 
-// Separate component so usePlaidLink only mounts when we have a token
+// Separate component so usePlaidLink only mounts when we have a token.
+// Passing itemId opens Plaid Link in update mode to re-authenticate that existing connection.
 function PlaidLinkButton({
   onSuccess,
   onExit,
+  itemId,
+  label = "🏦 Connect Bank",
 }: {
   onSuccess: (publicToken: string, institution: string) => void;
   onExit: () => void;
+  itemId?: string;
+  label?: string;
 }) {
   const [linkToken, setLinkToken] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.post<{ link_token: string }>("/plaid/link-token", {})
+    api.post<{ link_token: string }>("/plaid/link-token", itemId ? { item_id: itemId } : {})
       .then((r) => setLinkToken(r.link_token))
       .catch((err) => setFetchError(err instanceof ApiError ? err.message : "Failed to start Plaid"));
-  }, []);
+  }, [itemId]);
 
   const onPlaidSuccess = useCallback(
     (public_token: string, metadata: { institution?: { name?: string } | null }) => {
@@ -49,11 +54,11 @@ function PlaidLinkButton({
 
   return (
     <button
-      className="btn btn-primary"
+      className={itemId ? "btn btn-primary btn-sm" : "btn btn-primary"}
       onClick={() => open()}
       disabled={!ready || !linkToken}
     >
-      {!linkToken ? <span className="spinner" /> : "🏦 Connect Bank"}
+      {!linkToken ? <span className="spinner" /> : label}
     </button>
   );
 }
@@ -67,6 +72,8 @@ export default function SettingsPage() {
   const [showPlaid, setShowPlaid] = useState(false);
   const [syncing, setSyncing] = useState<string | null>(null);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const [needsReauth, setNeedsReauth] = useState<Set<string>>(new Set());
+  const [itemErrors, setItemErrors] = useState<Record<string, string>>({});
 
   function loadData() {
     return Promise.all([
@@ -101,17 +108,46 @@ export default function SettingsPage() {
     }
   }
 
+  function setItemError(itemId: string, message: string | null) {
+    setItemErrors((prev) => {
+      const next = { ...prev };
+      if (message) next[itemId] = message;
+      else delete next[itemId];
+      return next;
+    });
+  }
+
+  function setReauth(itemId: string, required: boolean) {
+    setNeedsReauth((prev) => {
+      const next = new Set(prev);
+      if (required) next.add(itemId);
+      else next.delete(itemId);
+      return next;
+    });
+  }
+
   async function syncItem(itemId: string) {
     setSyncing(itemId);
+    setItemError(itemId, null);
     try {
       await api.post(`/plaid/sync/${itemId}`, {});
+      setReauth(itemId, false);
       const accts = await api.get<AccountOut[]>("/transactions/accounts");
       setAccounts(accts);
-    } catch {
-      // silent
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "ITEM_LOGIN_REQUIRED") {
+        setReauth(itemId, true);
+      }
+      setItemError(itemId, err instanceof ApiError ? err.message : "Sync failed");
     } finally {
       setSyncing(null);
     }
+  }
+
+  // Update mode re-authenticates the existing item, so there's no token to exchange — just sync again.
+  async function handleReconnected(itemId: string) {
+    setReauth(itemId, false);
+    await syncItem(itemId);
   }
 
   function handleLogout() {
@@ -194,11 +230,23 @@ export default function SettingsPage() {
                   Connected {new Date(item.created_at).toLocaleDateString()}
                   {item.last_synced && ` · Last synced ${new Date(item.last_synced).toLocaleDateString()}`}
                 </div>
+                {itemErrors[item.id] && (
+                  <div style={{ fontSize: 11.5, color: "var(--danger)", marginTop: 3 }}>{itemErrors[item.id]}</div>
+                )}
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <button className="btn btn-ghost btn-sm" onClick={() => syncItem(item.id)} disabled={syncing === item.id}>
-                  {syncing === item.id ? <span className="spinner" /> : "Sync"}
-                </button>
+                {needsReauth.has(item.id) ? (
+                  <PlaidLinkButton
+                    itemId={item.id}
+                    label="Reconnect"
+                    onSuccess={() => handleReconnected(item.id)}
+                    onExit={() => {}}
+                  />
+                ) : (
+                  <button className="btn btn-ghost btn-sm" onClick={() => syncItem(item.id)} disabled={syncing === item.id}>
+                    {syncing === item.id ? <span className="spinner" /> : "Sync"}
+                  </button>
+                )}
               </div>
             </div>
           ))
