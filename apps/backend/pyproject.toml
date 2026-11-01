@@ -27,6 +27,9 @@ dev = [
     "pytest-cov>=5.0",
 ]
 
+[tool.vercel]
+entrypoint = "app.main:app"
+
 [tool.ruff]
 line-length = 120
 target-version = "py312"

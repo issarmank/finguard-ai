@@ -121,15 +121,15 @@ Open [http://localhost:3000](http://localhost:3000).
 
 The app is deployed on:
 
-- **Backend:** Azure Container Apps (`finguard-api`)
-- **Database:** Supabase (PostgreSQL via Session Pooler)
-- **Frontend:** Vercel (`finguard` project)
+- **Backend:** Vercel (FastAPI on Vercel Functions, separate project rooted at `apps/backend`)
+- **Database:** Supabase (PostgreSQL via Supavisor pooler)
+- **Frontend:** Vercel (`finguard` project), which proxies `/api/*` to the backend project
 
 See [DEPLOYMENT.md](./DEPLOYMENT.md) for the full deployment guide including CI/CD setup, environment variables, and known gotchas.
 
 ### CI/CD
 
-- Push to `apps/backend/**` → GitHub Actions tests, builds, and deploys to Azure
+- Push to `apps/backend/**` → GitHub Actions lints, tests and runs migrations; Vercel auto-deploys
 - Push to `apps/frontend/**` → Vercel auto-deploys
 
 ---
@@ -138,4 +138,4 @@ See [DEPLOYMENT.md](./DEPLOYMENT.md) for the full deployment guide including CI/
 
 Available at `/docs` (Swagger UI) and `/redoc` when the backend is running.
 
-Production: [finguard-api.thankfulsky-bac536ee.eastus.azurecontainerapps.io/docs](https://finguard-api.thankfulsky-bac536ee.eastus.azurecontainerapps.io/docs)
+Production: `https://<backend>.vercel.app/docs`

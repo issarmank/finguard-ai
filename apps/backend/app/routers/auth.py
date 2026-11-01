@@ -15,7 +15,7 @@ def _set_auth_cookie(response: Response, token: str) -> None:
         value=token,
         httponly=True,
         secure=is_prod,
-        samesite="none" if is_prod else "lax",
+        samesite="lax",
         max_age=settings.JWT_EXPIRE_MINUTES * 60,
         path="/",
     )
@@ -40,7 +40,7 @@ async def login(req: LoginRequest, db: DBSession, response: Response) -> UserRes
 @router.post("/logout", status_code=204)
 async def logout(response: Response) -> None:
     is_prod = settings.ENVIRONMENT == "production"
-    response.delete_cookie(key="fg_token", path="/", samesite="none" if is_prod else "lax")
+    response.delete_cookie(key="fg_token", path="/", secure=is_prod, samesite="lax")
 
 
 @router.get("/me", response_model=UserResponse)
